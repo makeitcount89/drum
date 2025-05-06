@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Drum Practice Pad</title>
+    <!-- Stylesheets -->
+    <link rel="stylesheet" href="styles.css">
+    <!-- Audio Files -->
+    <audio id="snare-sound" src="snare.mp3" preload="auto"></audio>
+    <audio id="bass-sound" src="bass.mp3" preload="auto"></audio>
+    <!-- Additional sounds for level unlocks -->
+    <audio id="snare2-sound" src="snare2.mp3" preload="auto"></audio>
+    <audio id="bass2-sound" src="bass2.mp3" preload="auto"></audio>
+    <audio id="snare3-sound" src="snare3.mp3" preload="auto"></audio>
+    <audio id="bass3-sound" src="bass3.mp3" preload="auto"></audio>
+    <audio id="snare4-sound" src="snare4.mp3" preload="auto"></audio>
+    <audio id="bass4-sound" src="bass4.mp3" preload="auto"></audio>
+    <audio id="snare5-sound" src="snare5.mp3" preload="auto"></audio>
+    <audio id="bass5-sound" src="bass5.mp3" preload="auto"></audio>
+</head>
+<body>
+    <header>
+        <h1>Drum Rudiment Practice</h1>
+        <div class="level-nav-wrapper">
+  <button id="prev-levels" class="level-nav-arrow">&larr;</button>
+  <div id="level-nav" class="level-nav"></div>
+  <button id="next-levels" class="level-nav-arrow">&rarr;</button>
+</div>
+
+
+    </header>
+
+    <div id="level-display">Level 1: Single Paradiddle</div>
+
+    <div id="pad-container">
+        <div id="circleL" class="circle">
+            <img src="snareimg.jpg" alt="Snare" style="width: 80px; height: 80px;">
+        </div>
+        <div id="circleR" class="circle">
+            <img src="bassimg.jpg" alt="Bass" style="width: 80px; height: 80px;">
+        </div>
+    </div>
+
+    
+
+    <div class="pattern" id="pattern"></div>
+
+    <div id="feedback"></div>
+    <div id="bpm-display"></div>
+    <div id="achievement-display" class="achievement-display"></div>
+
+    <div id="level-notification" class="level-notification"></div>
+	<div class="controls-info">
+        <p>Controls: Click pads or use keyboard - <span class="key">←</span> for Left hand (Snare), <span class="key">→</span> for Right hand (Bass)</p>
+        <div id="audio-status" style="margin-top: 10px; color: #777;">Click anywhere or press a key to enable audio</div>
+    </div>
+    <!-- JavaScript -->
+    <script src="script.js"></script>
+</body>
+</html>
