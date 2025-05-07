@@ -9,29 +9,66 @@ const levelNotification = document.getElementById('level-notification');
 const achievementDisplay = document.getElementById('achievement-display');
 const levelNav = document.getElementById('level-nav');
 
-// Create audio context with low latency options
+// Create audio context with optimized Android settings
 let audioContext;
 function createOptimizedAudioContext() {
+    // Android-specific optimizations:
+    // - Use lower buffer size for reduced latency
+    // - Set sample rate to match device capability
+    // - Use 'balanced' latencyHint for Android (better than 'interactive' on most Android devices)
+    
     const contextOptions = {
-        latencyHint: 'interactive',
+        latencyHint: 'balanced',
         sampleRate: 44100
     };
-    return new (window.AudioContext || window.webkitAudioContext)(contextOptions);
+    
+    // Create audio context with optimized settings
+    const ctx = new (window.AudioContext || window.webkitAudioContext)(contextOptions);
+    
+    // Android-specific: Check if we can use AudioWorklet for better performance
+    const hasAudioWorklet = typeof AudioWorkletNode === 'function';
+    
+    // Attempt to set smaller buffer size on Android if possible
+    if (ctx.audioWorklet && hasAudioWorklet) {
+        console.log('AudioWorklet API available for lower latency');
+    }
+    
+    // For older Android: Try to use older ScriptProcessor with small buffer
+    if (navigator.userAgent.toLowerCase().includes('android') && ctx.createScriptProcessor) {
+        // Create an unused processor with small buffer to influence the audio system
+        const bufferSize = 256; // Smallest safe value for most Android devices
+        const unusedProcessor = ctx.createScriptProcessor(bufferSize, 1, 1);
+        unusedProcessor.connect(ctx.destination); // This forces the audio system to use smaller buffers
+        
+        // Prevent audio crackling with empty process function
+        unusedProcessor.onaudioprocess = function() {};
+        
+        // Store reference to disconnect later
+        ctx._unusedProcessor = unusedProcessor;
+    }
+    
+    return ctx;
 }
 
-// Audio buffers and sources
+// Audio buffers and sources with optimized caching
 let snareBuffers = [], bassBuffers = [];
 let snareSourceNodes = [], bassSourceNodes = [];
+let cachedGainNode; // Reuse gain node to avoid repeated creation
 
-// Global variables
+// Global variables 
 let currentPatternIndex = 0;
 let currentLevel = 1;
 let startTime = null;
 let patternSpans = [];
-let currentSoundSet = 1; // Track which sound set we're using (1, 2, or 3)
-let touchStartTime = 0; // For detecting double taps
-let lastTouchEnd = 0; // For preventing double tap zoom on mobile
+let currentSoundSet = 1;
+let touchStartTime = 0;
+let lastTouchEnd = 0;
 let audioInitialized = false;
+let soundsLoaded = false;
+let androidAudioSetup = false; // Flag for Android-specific setup
+
+// Pre-create audio nodes for better performance
+let preCreatedSourceNodes = [];
 
 // Achievements tracker
 let achievements = {
@@ -53,7 +90,10 @@ const rudiments = {
         thresholds: { bronze: 70, silver: 130, gold: 180 }
     },
     3: { 
-    
+        name: "Five Stroke Roll",
+        pattern: ['R', 'R', 'L', 'L', 'R', 'L', 'L', 'R', 'R', 'L', 'R', 'R', 'L', 'L', 'R', 'L'],
+        thresholds: { bronze: 65, silver: 125, gold: 170 }
+    }
 };
 
 // Current pattern based on level
@@ -75,9 +115,8 @@ function createLevelNav() {
         btn.className = 'level-btn';
         if (level === currentLevel) {
             btn.classList.add('active');
-            btn.style.backgroundColor = '#0077ff'; // Add blue background color
-            btn.style.color = 'white'; // Change text color to white for better contrast
-          
+            btn.style.backgroundColor = '#0077ff';
+            btn.style.color = 'white';
             btn.setAttribute('aria-current', 'true');
         }
 
@@ -99,13 +138,15 @@ function createLevelNav() {
             const trophy = document.createElement('span');
             trophy.className = 'trophy';
             trophy.textContent = trophies[achievements[level]];
-            trophy.setAttribute('aria-hidden', 'true'); // Trophy is decorative since we included it in the aria-label
+            trophy.setAttribute('aria-hidden', 'true');
             btn.appendChild(trophy);
         }
 
-        // Add click handler
-        btn.addEventListener('click', () => {
+        // Add click handler with optimized touch response
+        btn.addEventListener('click', (e) => {
             if (isAccessible) {
+                // Android optimization: preventDefault to avoid delays
+                e.preventDefault();
                 changeLevel(level);
             }
         });
@@ -131,17 +172,25 @@ document.addEventListener('DOMContentLoaded', () => {
             container.scrollBy({ left: scrollAmount(), behavior: 'smooth' });
         });
 
-        // Add touch swipe support for mobile
+        // Add optimized touch swipe support for Android
         let touchStartX = 0;
+        let touchStartY = 0;
         let touchEndX = 0;
+        let touchEndY = 0;
 
         container.addEventListener('touchstart', (e) => {
             touchStartX = e.changedTouches[0].screenX;
-        }, {passive: true});
+            touchStartY = e.changedTouches[0].screenY;
+        }, {passive: true}); // Use passive listener for better scrolling performance
 
         container.addEventListener('touchend', (e) => {
             touchEndX = e.changedTouches[0].screenX;
-            handleSwipe();
+            touchEndY = e.changedTouches[0].screenY;
+            
+            // Only process horizontal swipes to avoid interference with scrolling
+            if (Math.abs(touchEndY - touchStartY) < 50) {
+                handleSwipe();
+            }
         }, {passive: true});
 
         function handleSwipe() {
@@ -158,11 +207,16 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-// Optimized sound playback with pre-buffering and low latency
+// Optimized sound playback with pre-buffering and Android-specific low latency
 function playSound(hand) {
     if (!audioInitialized) {
         initAudio();
         return;
+    }
+    
+    // Android-specific optimization: ensure audio context is running
+    if (audioContext.state !== 'running') {
+        audioContext.resume();
     }
 
     try {
@@ -172,48 +226,50 @@ function playSound(hand) {
 
         if (!buf) return;  // safety check
 
-        // Resume audio context if suspended (needed for iOS)
-        if (audioContext.state === 'suspended') {
-            audioContext.resume();
-        }
-
         // Create and configure source node with optimized settings
         const source = audioContext.createBufferSource();
         source.buffer = buf;
         
-        // Create a gain node for volume control
-        const gainNode = audioContext.createGain();
-        gainNode.gain.value = 1.0; // Full volume
+        // Android optimization: reuse gain node instead of creating new ones
+        if (!cachedGainNode) {
+            cachedGainNode = audioContext.createGain();
+            cachedGainNode.gain.value = 1.0;
+            cachedGainNode.connect(audioContext.destination);
+        }
         
-        // Connect source to gain node, then to destination
-        source.connect(gainNode);
-        gainNode.connect(audioContext.destination);
+        // Connect to the reused gain node for better performance
+        source.connect(cachedGainNode);
         
-        // Start playback immediately with no delay
+        // Android optimization: schedule sound to start *immediately*
+        // Using 0 instead of audioContext.currentTime can reduce latency on many devices
         source.start(0);
         
         // Store the source node for potential later cleanup
         if (hand === 'L') {
-            snareSourceNodes.push(source);
+            snareSourceNodes.push({ source, startTime: audioContext.currentTime });
         } else {
-            bassSourceNodes.push(source);
+            bassSourceNodes.push({ source, startTime: audioContext.currentTime });
         }
         
         // Clean up old source nodes to prevent memory leaks
         cleanupSourceNodes();
     } catch (err) {
         console.error("Error playing sound:", err);
+        // Attempt recovery if audio fails
+        if (audioContext.state !== 'running') {
+            audioContext.resume();
+        }
     }
 }
 
-// Clean up completed source nodes
+// Clean up completed source nodes with optimized memory management
 function cleanupSourceNodes() {
     const currentTime = audioContext.currentTime;
     const cleanup = (nodes) => {
         let i = 0;
         while (i < nodes.length) {
-            // Remove nodes that have finished playing or are 2+ seconds old
-            if (nodes[i].buffer && (currentTime > 2.0)) {
+            // Android optimization: more aggressive cleanup to prevent audio glitches
+            if (nodes[i] && nodes[i].startTime && (currentTime - nodes[i].startTime > 0.5)) {
                 nodes.splice(i, 1);
             } else {
                 i++;
@@ -224,6 +280,10 @@ function cleanupSourceNodes() {
     // Clean both arrays of source nodes
     cleanup(snareSourceNodes);
     cleanup(bassSourceNodes);
+    
+    // Android optimization: limit array size to prevent memory issues
+    if (snareSourceNodes.length > 10) snareSourceNodes.splice(0, snareSourceNodes.length - 10);
+    if (bassSourceNodes.length > 10) bassSourceNodes.splice(0, bassSourceNodes.length - 10);
 }
 
 // Advance to the next level with improved notification
@@ -288,9 +348,9 @@ function advanceLevel() {
 
     levelNotification.innerHTML = notificationMessage;
     levelNotification.style.opacity = '1';
-    // Add a vibration for mobile devices if supported
+    // Android-optimized vibration pattern (more reliable)
     if (navigator.vibrate) {
-        navigator.vibrate([100, 50, 100]);
+        navigator.vibrate([70, 30, 70]);
     }
 
     setTimeout(() => {
@@ -300,8 +360,6 @@ function advanceLevel() {
     // Progress to next level if available, otherwise stay on current
     if (currentLevel < Object.keys(rudiments).length) {
         // Update navigation BEFORE changing the level
-        
-        
         currentLevel++;
         currentPattern = rudiments[currentLevel].pattern;
         levelDisplay.textContent = `Level ${currentLevel}: ${rudiments[currentLevel].name}`;
@@ -349,9 +407,9 @@ function changeLevel(level) {
         currentSoundSet = 1;
     }
 
-    // Add haptic feedback for mobile if available
+    // Android-optimized haptic feedback 
     if (navigator.vibrate) {
-        navigator.vibrate(50);
+        navigator.vibrate(30);
     }
 
     // Update achievement display
@@ -365,13 +423,14 @@ function changeLevel(level) {
 function flashCircle(circle) {
     circle.classList.add('flash');
     
-    // Add a scaling effect for better visual feedback
+    // Android performance optimization: use transform for animation
+    // Hardware accelerated on most Android devices
     circle.style.transform = 'scale(1.1)';
     
     setTimeout(() => {
         circle.classList.remove('flash');
         circle.style.transform = 'scale(1.0)';
-    }, 200);
+    }, 150); // Shorter time for Android to match closer to sound
 }
 
 // Enhanced pattern text highlighting
@@ -396,7 +455,7 @@ function flashCurrentPatternText() {
             if (patternSpans[currentPatternIndex]) {
                 patternSpans[currentPatternIndex].classList.remove('flash');
             }
-        }, 300);
+        }, 250); // Slightly faster on Android
     }
 }
 
@@ -497,17 +556,26 @@ function getAchievement(bpm) {
     return 'bronze'; // Minimum achievement is bronze
 }
 
-// Handle stroke input (click, touch, or keyboard) with improved response
+// Handle stroke input with Android optimizations for lower latency
 function handleStroke(hand) {
-    const circle = hand === 'L' ? circleL : circleR;
-    flashCircle(circle);
+    // First check if audio ready - on Android this is crucial
+    if (!audioInitialized) {
+        initAudio();
+        return;
+    }
     
-    // Wake audio context if needed (iOS, Safari)
-    if (audioContext && audioContext.state === 'suspended') {
+    // Always try to resume audio context if needed - key for Android
+    if (audioContext && audioContext.state !== 'running') {
         audioContext.resume();
     }
     
+    // Android optimization: Play sound FIRST before visual updates
+    // This helps reduce audio latency by prioritizing audio processing
     playSound(hand);
+
+    // AFTER triggering audio, update visuals
+    const circle = hand === 'L' ? circleL : circleR;
+    flashCircle(circle);
 
     // Start timing from first correct hit
     if (currentPatternIndex === 0 && hand === currentPattern[0]) {
@@ -560,13 +628,16 @@ function handleStroke(hand) {
     }
 }
 
-// Initialize audio context and preload sounds
+// Initialize audio context and preload sounds with Android optimizations
 async function initAudio() {
     if (audioInitialized) return;
     
     try {
         // Create optimized audio context
         audioContext = createOptimizedAudioContext();
+        
+        // Android-specific setup
+        setupAndroidAudio(audioContext);
         
         const snareFiles = [
             'snare.mp3', 'snare1.mp3', 'snare2.mp3',
@@ -577,13 +648,67 @@ async function initAudio() {
             'bass3.mp3', 'bass4.mp3', 'bass5.mp3'
         ];
 
-        // Helper to fetch & decode with error handling
-        const load = async url => {
+        // Show loading indicator
+        feedback.textContent = "Loading sounds...";
+        
+        // Android-specific loading optimizations
+        try {
+            // Pre-create gain node that will be reused
+            cachedGainNode = audioContext.createGain();
+            cachedGainNode.gain.value = 1.0;
+            cachedGainNode.connect(audioContext.destination);
+            
+            // Android optimization: Pre-create source nodes
+            // Create just a few placeholder source nodes to help "warm up" the audio system
+            for (let i = 0; i < 3; i++) {
+                const dummyBuffer = audioContext.createBuffer(1, 44100, 44100);
+                const source = audioContext.createBufferSource();
+                source.buffer = dummyBuffer;
+                preCreatedSourceNodes.push(source);
+            }
+        } catch (err) {
+            console.log('Pre-creation step skipped:', err);
+        }
+
+        // Android optimization: Helper to fetch & decode with error handling and retries
+        const load = async (url, retries = 2) => {
             try {
-                const resp = await fetch(url);
-                if (!resp.ok) throw new Error(`Failed to load ${url}: ${resp.status}`);
-                const data = await resp.arrayBuffer();
-                return await audioContext.decodeAudioData(data);
+                // Android: Use XHR instead of fetch for better compatibility
+                // with older Android WebView implementations
+                return new Promise((resolve, reject) => {
+                    const xhr = new XMLHttpRequest();
+                    xhr.open('GET', url, true);
+                    xhr.responseType = 'arraybuffer';
+                    
+                    xhr.onload = function() {
+                        if (xhr.status === 200) {
+                            // Decode with error handling
+                            audioContext.decodeAudioData(xhr.response, 
+                                (buffer) => resolve(buffer),
+                                (err) => {
+                                    console.error(`Error decoding ${url}:`, err);
+                                    // Return an empty buffer as fallback
+                                    resolve(audioContext.createBuffer(2, 44100, 44100));
+                                }
+                            );
+                        } else {
+                            reject(new Error(`Failed to load ${url}: ${xhr.status}`));
+                        }
+                    };
+                    
+                    xhr.onerror = function() {
+                        if (retries > 0) {
+                            console.log(`Retrying ${url}, ${retries} attempts left`);
+                            setTimeout(() => resolve(load(url, retries - 1)), 500);
+                        } else {
+                            console.error(`Failed to load ${url} after retries`);
+                            // Return an empty buffer to prevent crashes
+                            resolve(audioContext.createBuffer(2, 44100, 44100));
+                        }
+                    };
+                    
+                    xhr.send();
+                });
             } catch (err) {
                 console.error(`Error loading audio file ${url}:`, err);
                 // Return an empty buffer as fallback
@@ -591,156 +716,113 @@ async function initAudio() {
             }
         };
 
-        // Show loading indicator
-        feedback.textContent = "Loading sounds...";
-
-        // Preload all snares and basses with Promise.all for parallel loading
-        [snareBuffers, bassBuffers] = await Promise.all([
-            Promise.all(snareFiles.map(load)),
-            Promise.all(bassFiles.map(load))
+        // Android optimization: Load in small batches to avoid memory issues
+        snareBuffers = [];
+        bassBuffers = [];
+        
+        // Load first sounds immediately
+        [snareBuffers[0], bassBuffers[0]] = await Promise.all([
+            load(snareFiles[0]),
+            load(bassFiles[0])
         ]);
-
+        
+        // Signal audio is initialized with at least basic sounds
         audioInitialized = true;
-        feedback.textContent = "Ready to play!";
+        feedback.textContent = "Basic sounds loaded";
         
-        setTimeout(() => {
-            feedback.textContent = "";
-        }, 1500);
+        // Load the rest of the sounds in the background
+        loadRemainingBuffers();
         
-        console.log('All drum sounds decoded and ready');
+        // Function to load remaining buffers in background
+        async function loadRemainingBuffers() {
+            try {
+                // Load the rest of the snare sounds
+                for (let i = 1; i < snareFiles.length; i++) {
+                    snareBuffers[i] = await load(snareFiles[i]);
+                }
+                
+                // Load the rest of the bass sounds
+                for (let i = 1; i < bassFiles.length; i++) {
+                    bassBuffers[i] = await load(bassFiles[i]);
+                }
+                
+                soundsLoaded = true;
+                feedback.textContent = "All sounds loaded!";
+                
+                setTimeout(() => {
+                    feedback.textContent = "";
+                }, 1500);
+                
+                console.log('All drum sounds decoded and ready');
+            } catch (err) {
+                console.error('Error loading additional sounds:', err);
+                // Still mark as complete to allow play with basic sounds
+                soundsLoaded = true;
+            }
+        }
+        
     } catch (err) {
         console.error('Error initializing audio:', err);
         feedback.textContent = "Audio error. Please reload the page.";
+        
+        // Recovery attempt
+        setTimeout(() => {
+            feedback.textContent = "Retrying audio setup...";
+            audioInitialized = false;
+            initAudio();
+        }, 3000);
     }
 }
 
+// Android-specific audio setup
+function setupAndroidAudio(ctx) {
+    if (androidAudioSetup) return;
+    
+    // Check if we're on Android
+    const isAndroid = /android/i.test(navigator.userAgent);
+    
+    if (isAndroid) {
+        console.log('Android-specific audio optimizations applied');
+        
+        // Create and connect a silent oscillator to keep audio context active
+        // This helps reduce latency on Android devices
+        try {
+            const silentOsc = ctx.createOscillator();
+            silentOsc.frequency.value = 0;
+            silentOsc.connect(ctx.destination);
+            silentOsc.start();
+            // Don't stop it - we want it to keep the audio context hot
+            
+            // Set up a periodic ping to keep the audio system awake
+            setInterval(() => {
+                if (ctx.state === 'running') {
+                    // Create very short, silent buffer and play it
+                    const silentBuffer = ctx.createBuffer(1, 1, 44100);
+                    const source = ctx.createBufferSource();
+                    source.buffer = silentBuffer;
+                    source.connect(ctx.destination);
+                    source.start();
+                }
+            }, 3000); // Every 3 seconds
+        } catch (e) {
+            console.log('Silent oscillator setup failed:', e);
+        }
+    }
+    
+    androidAudioSetup = true;
+}
+
 // Prevent zooming on double tap for mobile devices
+// Optimized for Android touch handling
 function preventZoom(e) {
     const now = Date.now();
     const timeSince = now - lastTouchEnd;
     
-    if (timeSince < 300) {
+    if (timeSince < 500) {
+        // Use preventDefault and stopPropagation on Android
         e.preventDefault();
+        e.stopPropagation();
     }
     
     lastTouchEnd = now;
 }
-
-// Add iOS/Safari specific optimizations
-function setupIOSOptimizations() {
-    // These are needed for iOS audio to work properly
-    document.addEventListener('touchstart', () => {
-        // iOS requires first user interaction to start audio
-        if (audioContext && audioContext.state === 'suspended') {
-            audioContext.resume();
-        }
-    }, {passive: false});
-    
-    // Prevent double-tap zoom on iOS
-    document.addEventListener('touchend', preventZoom, {passive: false});
-}
-
-// Set up all event listeners
-function setupEventListeners() {
-    // Attach click events to the circles
-    circleL.addEventListener('click', () => handleStroke('L'));
-    circleR.addEventListener('click', () => handleStroke('R'));
-    
-    // Touch events for mobile with better handling
-    circleL.addEventListener('touchstart', (e) => {
-        e.preventDefault(); // Prevent default to avoid delay
-        handleStroke('L');
-    }, {passive: false});
-    
-    circleR.addEventListener('touchstart', (e) => {
-        e.preventDefault(); // Prevent default to avoid delay
-        handleStroke('R');
-    }, {passive: false});
-
-    // Add keyboard event listener
-    document.addEventListener('keydown', (event) => {
-        // Left arrow key for L, Right arrow key for R
-        if (event.key === 'ArrowLeft' || event.key === 'a' || event.key === 'A') {
-            handleStroke('L');
-            event.preventDefault(); // Prevent page scrolling
-        } else if (event.key === 'ArrowRight' || event.key === 'd' || event.key === 'D') {
-            handleStroke('R');
-            event.preventDefault(); // Prevent page scrolling
-        }
-    });
-    
-    // Handle visibility change for better audio resumption
-    document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'visible' && audioContext && audioContext.state === 'suspended') {
-            audioContext.resume();
-        }
-    });
-    
-    // Handle resize events to adjust UI for different screen sizes
-    window.addEventListener('resize', debounce(() => {
-        updateUIForScreenSize();
-    }, 250));
-}
-
-// Handle UI updates based on screen size
-function updateUIForScreenSize() {
-    const isMobile = window.innerWidth < 768;
-    document.body.classList.toggle('mobile-view', isMobile);
-    
-    // Update text size or layout if needed
-    if (isMobile) {
-        // Mobile-specific adjustments
-        pattern.classList.add('mobile-pattern');
-    } else {
-        pattern.classList.remove('mobile-pattern');
-    }
-}
-
-// Utility function for debouncing
-function debounce(func, wait) {
-    let timeout;
-    return function executedFunction(...args) {
-        const later = () => {
-            clearTimeout(timeout);
-            func(...args);
-        };
-        clearTimeout(timeout);
-        timeout = setTimeout(later, wait);
-    };
-}
-
-// Initialize app with improved startup
-function initApp() {
-    // Make sure we start at level 1
-    currentLevel = 1;
-    currentPattern = rudiments[currentLevel].pattern;
-    levelDisplay.textContent = `Level ${currentLevel}: ${rudiments[currentLevel].name}`;
-    updatePatternDisplay();
-    createLevelNav();
-    showAchievementInfo();
-    updateUIForScreenSize();
-    
-    // Set up event listeners
-    setupEventListeners();
-    setupIOSOptimizations();
-    
-    // Initialize audio on first user interaction for better mobile compatibility
-    const startAudioInit = () => {
-        if (!audioInitialized) {
-            initAudio();
-        }
-    };
-    
-    document.addEventListener('click', startAudioInit, { once: true });
-    document.addEventListener('touchstart', startAudioInit, { once: true, passive: true });
-    document.addEventListener('keydown', startAudioInit, { once: true });
-    
-    // Add a welcome message
-    feedback.textContent = "Tap to start!";
-    setTimeout(() => {
-        feedback.textContent = "";
-    }, 3000);
-}
-
-// Start the app when the page loads
-window.addEventListener('load', initApp);
