@@ -1241,7 +1241,7 @@ document.addEventListener('DOMContentLoaded', () => {
     overlay.style.backgroundColor = 'rgba(0, 0, 0, 0)'; // Reset
   });
 });
-};
+});
 // Handle online/offline events
 window.addEventListener('online', function() {
     console.log('App is online');
