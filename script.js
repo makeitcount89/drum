@@ -825,8 +825,7 @@ function preventZoom(e) {
     }
     
     lastTouchEnd = now;
-}
-// Setup event listeners for drum pad interaction
+}// Setup event listeners for drum pad interaction
 function setupEventListeners() {
     // Touch events for mobile with Android-specific optimizations
     circleR.addEventListener('touchstart', function(e) {
