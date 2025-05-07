@@ -19,7 +19,7 @@ function createOptimizedAudioContext() {
     
     const contextOptions = {
         latencyHint: 'balanced',
-        sampleRate: 6000
+        sampleRate: 8000
     };
     
     // Create audio context with optimized settings
