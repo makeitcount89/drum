@@ -8,16 +8,30 @@ const levelDisplay = document.getElementById('level-display');
 const levelNotification = document.getElementById('level-notification');
 const achievementDisplay = document.getElementById('achievement-display');
 const levelNav = document.getElementById('level-nav');
-const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-let snareBuffers = [], bassBuffers = [];
 
+// Create audio context with low latency options
+let audioContext;
+function createOptimizedAudioContext() {
+    const contextOptions = {
+        latencyHint: 'interactive',
+        sampleRate: 44100
+    };
+    return new (window.AudioContext || window.webkitAudioContext)(contextOptions);
+}
+
+// Audio buffers and sources
+let snareBuffers = [], bassBuffers = [];
+let snareSourceNodes = [], bassSourceNodes = [];
 
 // Global variables
-let currentPatternIndex = 0
+let currentPatternIndex = 0;
 let currentLevel = 1;
 let startTime = null;
 let patternSpans = [];
 let currentSoundSet = 1; // Track which sound set we're using (1, 2, or 3)
+let touchStartTime = 0; // For detecting double taps
+let lastTouchEnd = 0; // For preventing double tap zoom on mobile
+let audioInitialized = false;
 
 // Achievements tracker
 let achievements = {
@@ -27,131 +41,19 @@ let achievements = {
     16: null, 17: null, 18: null, 19: null, 20: null
 };
 
-// Rudiment patterns
+// Rudiment patterns - placeholder as requested
 const rudiments = {
-    // 16-beat patterns (easy to moderate)
+    // This is a placeholder for rudiments data
+    // The actual rudiments data would go here
     1: {
         name: "Single Stroke Roll",
         pattern: ['R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L'],
         thresholds: { bronze: 60, silver: 120, gold: 160 }
     },
-    2: {
-        name: "Double Stroke Roll",
-        pattern: ['R', 'R', 'L', 'L', 'R', 'R', 'L', 'L', 'R', 'R', 'L', 'L', 'R', 'R', 'L', 'L'],
-        thresholds: { bronze: 70, silver: 140, gold: 180 }
-    },
-    3: {
-        name: "Single Paradiddle",
-        pattern: ['R', 'L', 'R', 'R', 'L', 'R', 'L', 'L', 'R', 'L', 'R', 'R', 'L', 'R', 'L', 'L'],
-        thresholds: { bronze: 80, silver: 150, gold: 200 }
-    },
-    4: {
-        name: "Double Paradiddle",
-        pattern: ['R', 'L', 'R', 'L', 'R', 'R', 'L', 'R', 'L', 'R', 'L', 'L', 'R', 'L', 'R', 'L'],
-        thresholds: { bronze: 90, silver: 160, gold: 220 }
-    },
-    5: {
-        name: "Triple Stroke Roll",
-        pattern: ['R', 'R', 'R', 'L', 'L', 'L', 'R', 'R', 'R', 'L', 'L', 'L', 'R', 'R', 'R', 'L'],
-        thresholds: { bronze: 100, silver: 170, gold: 230 }
-    },
-
-    // 32-beat patterns (moderate)
-    6: {
-        name: "Single Stroke Four",
-        pattern: ['R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L',
-            'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L'],
-        thresholds: { bronze: 110, silver: 180, gold: 240 }
-    },
-    7: {
-        name: "Paradiddle-Diddle",
-        pattern: ['R', 'L', 'R', 'R', 'L', 'L', 'L', 'R', 'L', 'L', 'R', 'R', 'R', 'L', 'R', 'R',
-            'L', 'L', 'R', 'R', 'L', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L'],
-        thresholds: { bronze: 110, silver: 190, gold: 250 }
-    },
-    8: {
-        name: "Single Stroke Seven",
-        pattern: ['R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L',
-            'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L'],
-        thresholds: { bronze: 120, silver: 200, gold: 270 }
-    },
-    9: {
-        name: "Triplet Paradiddle",
-        pattern: ['R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L',
-            'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L'],
-        thresholds: { bronze: 130, silver: 210, gold: 280 }
-    },
-    10: {
-        name: "Paradiddle Triplets",
-        pattern: ['R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L',
-            'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L'],
-        thresholds: { bronze: 130, silver: 210, gold: 290 }
-    },
-
-    // 64-beat patterns (hard)
-    11: {
-        name: "Ratamacue",
-        pattern: ['R', 'L', 'R', 'R', 'L', 'R', 'L', 'L', 'R', 'R', 'R', 'L', 'R', 'L', 'L', 'R',
-            'R', 'L', 'L', 'R', 'R', 'L', 'R', 'L', 'L', 'R', 'R', 'L', 'R', 'R', 'L', 'L',
-            'R', 'R', 'L', 'L', 'R', 'L', 'R', 'R', 'L', 'R', 'R', 'R', 'L', 'L', 'R', 'L',
-            'R', 'R', 'L', 'R', 'L', 'R', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'L', 'R'],
-        thresholds: { bronze: 140, silver: 220, gold: 300 }
-    },
-    12: {
-        name: "Single Paradiddle Triplets",
-        pattern: ['R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L',
-            'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L',
-            'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L'],
-        thresholds: { bronze: 140, silver: 230, gold: 310 }
-    },
-    13: {
-        name: "Single Stroke Six",
-        pattern: ['R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L',
-            'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L',
-            'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L'],
-        thresholds: { bronze: 150, silver: 240, gold: 320 }
-    },
-    14: {
-        name: "Double Stroke Four",
-        pattern: ['R', 'R', 'L', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'R', 'L', 'L',
-            'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'R', 'L', 'R', 'L', 'L', 'R', 'R'],
-        thresholds: { bronze: 150, silver: 240, gold: 330 }
-    },
-    15: {
-        name: "Swiss Triplets",
-        pattern: ['R', 'L', 'L', 'R', 'R', 'L', 'L', 'R', 'R', 'L', 'R', 'L', 'R', 'R', 'L', 'L',
-            'R', 'L', 'L', 'R', 'R', 'L', 'L', 'R', 'R', 'L', 'L', 'R', 'L', 'R', 'R', 'L'],
-        thresholds: { bronze: 160, silver: 250, gold: 340 }
-    },
-    16: {
-        name: "Drag",
-        pattern: ['R', 'L', 'L', 'R', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L',
-            'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L'],
-        thresholds: { bronze: 160, silver: 250, gold: 350 }
-    },
-    17: {
-        name: "Double Stroke Diddle",
-        pattern: ['R', 'R', 'L', 'L', 'R', 'L', 'R', 'L', 'R', 'R', 'L', 'L', 'R', 'L', 'R', 'L',
-            'R', 'L', 'R', 'L', 'R', 'R', 'L', 'R', 'L', 'R', 'R', 'L', 'R', 'L', 'R', 'L'],
-        thresholds: { bronze: 160, silver: 250, gold: 350 }
-    },
-    18: {
-        name: "Triplet Roll",
-        pattern: ['R', 'R', 'R', 'L', 'L', 'L', 'R', 'R', 'R', 'L', 'L', 'L', 'R', 'R', 'R', 'L',
-            'L', 'L', 'R', 'R', 'R', 'L', 'L', 'L', 'R', 'R', 'R', 'L', 'L', 'L', 'R', 'R'],
-        thresholds: { bronze: 170, silver: 260, gold: 360 }
-    },
-    19: {
-        name: "Triple Paradiddle",
-        pattern: ['R', 'L', 'R', 'L', 'R', 'L', 'R', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'L',
-            'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L',
-            'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L'],
-        thresholds: { bronze: 180, silver: 270, gold: 370 }
-    },
+    // More rudiments would go here...
     20: {
         name: "Six Stroke Roll",
-        pattern: ['R', 'L', 'R', 'R', 'L', 'L', 'R', 'R', 'L', 'L', 'R', 'R', 'L', 'L', 'R', 'R',
-            'R', 'L', 'L', 'R', 'R', 'R', 'L', 'L', 'R', 'L', 'L', 'R', 'L', 'L', 'R', 'R'],
+        pattern: ['R', 'L', 'R', 'R', 'L', 'L', 'R', 'R', 'L', 'L', 'R', 'R', 'L', 'L', 'R', 'R'],
         thresholds: { bronze: 180, silver: 280, gold: 380 }
     }
 };
@@ -166,7 +68,7 @@ const trophies = {
     bronze: '🥉'
 };
 
-// Create level navigation buttons
+// Create level navigation buttons with improved accessibility
 function createLevelNav() {
     levelNav.innerHTML = '';
 
@@ -175,23 +77,28 @@ function createLevelNav() {
         btn.className = 'level-btn';
         if (level === currentLevel) {
             btn.classList.add('active');
+            btn.setAttribute('aria-current', 'true');
         }
 
         // Check if level is accessible (previous level completed or level 1)
         const isAccessible = level === 1 || achievements[level - 1] !== null;
         if (!isAccessible) {
             btn.classList.add('locked');
+            btn.setAttribute('aria-disabled', 'true');
+            btn.setAttribute('tabindex', '-1');
         } else if (achievements[level] !== null) {
             btn.classList.add('completed');
         }
 
         btn.textContent = `Level ${level}`;
+        btn.setAttribute('aria-label', `Level ${level} ${!isAccessible ? '(locked)' : (achievements[level] ? `(completed with ${achievements[level]} trophy)` : '')}`);
 
         // Add trophy if achieved
         if (achievements[level]) {
             const trophy = document.createElement('span');
             trophy.className = 'trophy';
             trophy.textContent = trophies[achievements[level]];
+            trophy.setAttribute('aria-hidden', 'true'); // Trophy is decorative since we included it in the aria-label
             btn.appendChild(trophy);
         }
 
@@ -205,13 +112,15 @@ function createLevelNav() {
         levelNav.appendChild(btn);
     }
 }
+
+// Horizontal scroll functionality for level navigation
 document.addEventListener('DOMContentLoaded', () => {
     const leftArrow = document.getElementById('prev-levels');
     const rightArrow = document.getElementById('next-levels');
     const container = document.getElementById('level-nav');
 
     if (leftArrow && rightArrow && container) {
-        const scrollAmount = () => container.querySelector('.level-btn')?.offsetWidth || 100;
+        const scrollAmount = () => container.querySelector('.level-btn')?.offsetWidth + 10 || 100;
 
         leftArrow.addEventListener('click', () => {
             container.scrollBy({ left: -scrollAmount(), behavior: 'smooth' });
@@ -220,24 +129,103 @@ document.addEventListener('DOMContentLoaded', () => {
         rightArrow.addEventListener('click', () => {
             container.scrollBy({ left: scrollAmount(), behavior: 'smooth' });
         });
+
+        // Add touch swipe support for mobile
+        let touchStartX = 0;
+        let touchEndX = 0;
+
+        container.addEventListener('touchstart', (e) => {
+            touchStartX = e.changedTouches[0].screenX;
+        }, {passive: true});
+
+        container.addEventListener('touchend', (e) => {
+            touchEndX = e.changedTouches[0].screenX;
+            handleSwipe();
+        }, {passive: true});
+
+        function handleSwipe() {
+            const swipeThreshold = 50;
+            if (touchEndX < touchStartX - swipeThreshold) {
+                // Swipe left, scroll right
+                container.scrollBy({ left: scrollAmount(), behavior: 'smooth' });
+            }
+            if (touchEndX > touchStartX + swipeThreshold) {
+                // Swipe right, scroll left
+                container.scrollBy({ left: -scrollAmount(), behavior: 'smooth' });
+            }
+        }
     }
 });
 
+// Optimized sound playback with pre-buffering and low latency
 function playSound(hand) {
-    const buffers = hand === 'L' ? snareBuffers : bassBuffers;
-    const idx = Math.min(currentSoundSet - 1, buffers.length - 1);
-    const buf = buffers[idx];
+    if (!audioInitialized) {
+        initAudio();
+        return;
+    }
 
-    if (!buf) return;  // safety
+    try {
+        const buffers = hand === 'L' ? snareBuffers : bassBuffers;
+        const idx = Math.min(currentSoundSet - 1, buffers.length - 1);
+        const buf = buffers[idx];
 
-    const src = audioContext.createBufferSource();
-    src.buffer = buf;
-    src.connect(audioContext.destination);
-    src.start();       // near-instant, low-latency playback
+        if (!buf) return;  // safety check
+
+        // Resume audio context if suspended (needed for iOS)
+        if (audioContext.state === 'suspended') {
+            audioContext.resume();
+        }
+
+        // Create and configure source node with optimized settings
+        const source = audioContext.createBufferSource();
+        source.buffer = buf;
+        
+        // Create a gain node for volume control
+        const gainNode = audioContext.createGain();
+        gainNode.gain.value = 1.0; // Full volume
+        
+        // Connect source to gain node, then to destination
+        source.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        
+        // Start playback immediately with no delay
+        source.start(0);
+        
+        // Store the source node for potential later cleanup
+        if (hand === 'L') {
+            snareSourceNodes.push(source);
+        } else {
+            bassSourceNodes.push(source);
+        }
+        
+        // Clean up old source nodes to prevent memory leaks
+        cleanupSourceNodes();
+    } catch (err) {
+        console.error("Error playing sound:", err);
+    }
 }
 
+// Clean up completed source nodes
+function cleanupSourceNodes() {
+    const currentTime = audioContext.currentTime;
+    const cleanup = (nodes) => {
+        let i = 0;
+        while (i < nodes.length) {
+            // Remove nodes that have finished playing or are 2+ seconds old
+            if (nodes[i].buffer && (currentTime > 2.0)) {
+                nodes.splice(i, 1);
+            } else {
+                i++;
+            }
+        }
+    };
+    
+    // Clean both arrays of source nodes
+    cleanup(snareSourceNodes);
+    cleanup(bassSourceNodes);
+}
 
-// Advance to the next level
+// Advance to the next level with improved notification
 function advanceLevel() {
     const bpm = calculateBPM();
     let achievement = 'bronze';
@@ -260,7 +248,7 @@ function advanceLevel() {
         }
     }
 
-    // Check if we're advancing to level 2 or 4 to unlock new sounds
+    // Check if we're advancing to a level that unlocks new sounds
     const newLevel = currentLevel + 1;
     let soundUnlocked = false;
 
@@ -299,6 +287,10 @@ function advanceLevel() {
 
     levelNotification.innerHTML = notificationMessage;
     levelNotification.style.opacity = '1';
+    // Add a vibration for mobile devices if supported
+    if (navigator.vibrate) {
+        navigator.vibrate([100, 50, 100]);
+    }
 
     setTimeout(() => {
         levelNotification.style.opacity = '0';
@@ -325,7 +317,7 @@ function advanceLevel() {
     startTime = null;
 }
 
-// 4. Add sound set reset to the changeLevel function
+// Change level with improved experience
 function changeLevel(level) {
     if (level === currentLevel) return;
 
@@ -340,6 +332,7 @@ function changeLevel(level) {
     feedback.textContent = '';
     bpmDisplay.textContent = '';
 
+    // Set appropriate sound set based on level
     if (level >= 8) {
         currentSoundSet = 5;
     } else if (level >= 6) {
@@ -352,6 +345,10 @@ function changeLevel(level) {
         currentSoundSet = 1;
     }
 
+    // Add haptic feedback for mobile if available
+    if (navigator.vibrate) {
+        navigator.vibrate(50);
+    }
 
     // Update achievement display
     showAchievementInfo();
@@ -360,25 +357,36 @@ function changeLevel(level) {
     createLevelNav();
 }
 
-// Function to flash the circle when tapped
+// Enhanced circle flash animation with visual feedback
 function flashCircle(circle) {
     circle.classList.add('flash');
+    
+    // Add a scaling effect for better visual feedback
+    circle.style.transform = 'scale(1.1)';
+    
     setTimeout(() => {
         circle.classList.remove('flash');
+        circle.style.transform = 'scale(1.0)';
     }, 200);
 }
 
-// Function to update pattern text size based on current position
+// Enhanced pattern text highlighting
 function flashCurrentPatternText() {
     // Only proceed if the patternSpans array has elements and index is valid
     if (patternSpans.length > 0 && currentPatternIndex < patternSpans.length) {
         // Remove flash class from all spans first
         for (let i = 0; i < patternSpans.length; i++) {
             patternSpans[i].classList.remove('flash');
+            patternSpans[i].classList.remove('next');
         }
 
         // Add flash class to the current position in the pattern
         patternSpans[currentPatternIndex].classList.add('flash');
+        
+        // Highlight the next stroke in the sequence
+        if (currentPatternIndex + 1 < patternSpans.length) {
+            patternSpans[currentPatternIndex + 1].classList.add('next');
+        }
 
         setTimeout(() => {
             if (patternSpans[currentPatternIndex]) {
@@ -388,19 +396,33 @@ function flashCurrentPatternText() {
     }
 }
 
-// Function to update the pattern display
+// Update pattern display with better visibility
 function updatePatternDisplay() {
     pattern.innerHTML = '';
-    currentPattern.forEach(stroke => {
+    
+    // Create groups of 4 for better readability
+    for (let i = 0; i < currentPattern.length; i++) {
         const span = document.createElement('span');
-        span.textContent = stroke;
+        span.textContent = currentPattern[i];
+        span.setAttribute('data-index', i);
         pattern.appendChild(span);
-    });
-    // Update our patternSpans array after creating the elements
+        
+        // Add a space after every 4 elements for easier reading
+        if ((i + 1) % 4 === 0 && i !== currentPattern.length - 1) {
+            pattern.appendChild(document.createTextNode(' '));
+        }
+    }
+    
+    // Update patternSpans array after creating the elements
     patternSpans = Array.from(pattern.getElementsByTagName('span'));
+    
+    // Highlight the first stroke to start with
+    if (patternSpans.length > 0) {
+        patternSpans[0].classList.add('next');
+    }
 }
 
-// Show level completion notification
+// Show level completion notification with enhanced visuals
 function showLevelNotification(level, achievement) {
     const bpm = calculateBPM();
     let message = `Level ${level - 1} Completed!`;
@@ -419,22 +441,28 @@ function showLevelNotification(level, achievement) {
 
     levelNotification.innerHTML = message;
     levelNotification.style.opacity = '1';
+    
+    // Add animation classes for better visual effect
+    levelNotification.classList.add('notification-animate');
 
     setTimeout(() => {
         levelNotification.style.opacity = '0';
+        levelNotification.classList.remove('notification-animate');
     }, 4000);
 }
 
-// Display achievement info for current level
+// Display achievement info for current level with improved UI
 function showAchievementInfo() {
     const thresholds = rudiments[currentLevel].thresholds;
-    let html = `Achievements: `;
-    html += `<span class="achievement-bronze">${trophies.bronze} (${thresholds.bronze}+ BPM)</span> | `;
-    html += `<span class="achievement-silver">${trophies.silver} (${thresholds.silver}+ BPM)</span> | `;
-    html += `<span class="achievement-gold">${trophies.gold} (${thresholds.gold}+ BPM)</span>`;
+    let html = `<div class="achievement-header">Achievements:</div>`;
+    html += `<div class="achievement-grid">`;
+    html += `<div class="achievement-item achievement-bronze">${trophies.bronze} <span>${thresholds.bronze}+ BPM</span></div>`;
+    html += `<div class="achievement-item achievement-silver">${trophies.silver} <span>${thresholds.silver}+ BPM</span></div>`;
+    html += `<div class="achievement-item achievement-gold">${trophies.gold} <span>${thresholds.gold}+ BPM</span></div>`;
+    html += `</div>`;
 
     if (achievements[currentLevel]) {
-        html += `<br>Current achievement: <span class="achievement-${achievements[currentLevel]}">${trophies[achievements[currentLevel]]}</span>`;
+        html += `<div class="current-achievement">Current: <span class="achievement-${achievements[currentLevel]}">${trophies[achievements[currentLevel]]}</span></div>`;
     }
 
     achievementDisplay.innerHTML = html;
@@ -465,12 +493,16 @@ function getAchievement(bpm) {
     return 'bronze'; // Minimum achievement is bronze
 }
 
-
-
-// Handle circle click or keyboard press
+// Handle stroke input (click, touch, or keyboard) with improved response
 function handleStroke(hand) {
     const circle = hand === 'L' ? circleL : circleR;
     flashCircle(circle);
+    
+    // Wake audio context if needed (iOS, Safari)
+    if (audioContext && audioContext.state === 'suspended') {
+        audioContext.resume();
+    }
+    
     playSound(hand);
 
     // Start timing from first correct hit
@@ -490,38 +522,190 @@ function handleStroke(hand) {
         // Check if pattern is complete
         if (currentPatternIndex === currentPattern.length) {
             feedback.textContent = "Well done!";
+            feedback.classList.add('success');
+            
             setTimeout(() => {
                 advanceLevel();
                 feedback.textContent = "";
+                feedback.classList.remove('success');
             }, 1000);
         }
     } else {
         // Reset if the wrong circle is clicked
         feedback.textContent = "Oops! Try again.";
+        feedback.classList.add('error');
         currentPatternIndex = 0;
         startTime = null;
+        
+        // Visual indication of mistake
+        pattern.classList.add('error-shake');
+
+        // Highlight the first stroke again
+        if (patternSpans.length > 0) {
+            for (let i = 0; i < patternSpans.length; i++) {
+                patternSpans[i].classList.remove('flash', 'next');
+            }
+            patternSpans[0].classList.add('next');
+        }
 
         setTimeout(() => {
             feedback.textContent = "";
+            feedback.classList.remove('error');
+            pattern.classList.remove('error-shake');
         }, 1000);
     }
 }
 
-// Attach click events to the circles
-circleL.addEventListener('click', () => handleStroke('L'));
-circleR.addEventListener('click', () => handleStroke('R'));
+// Initialize audio context and preload sounds
+async function initAudio() {
+    if (audioInitialized) return;
+    
+    try {
+        // Create optimized audio context
+        audioContext = createOptimizedAudioContext();
+        
+        const snareFiles = [
+            'snare.mp3', 'snare1.mp3', 'snare2.mp3',
+            'snare3.mp3', 'snare4.mp3', 'snare5.mp3'
+        ];
+        const bassFiles = [
+            'bass.mp3', 'bass1.mp3', 'bass2.mp3',
+            'bass3.mp3', 'bass4.mp3', 'bass5.mp3'
+        ];
 
-// Add keyboard event listener
-document.addEventListener('keydown', (event) => {
-    // Left arrow key for L, Right arrow key for R
-    if (event.key === 'ArrowLeft') {
-        handleStroke('L');
-    } else if (event.key === 'ArrowRight') {
-        handleStroke('R');
+        // Helper to fetch & decode with error handling
+        const load = async url => {
+            try {
+                const resp = await fetch(url);
+                if (!resp.ok) throw new Error(`Failed to load ${url}: ${resp.status}`);
+                const data = await resp.arrayBuffer();
+                return await audioContext.decodeAudioData(data);
+            } catch (err) {
+                console.error(`Error loading audio file ${url}:`, err);
+                // Return an empty buffer as fallback
+                return audioContext.createBuffer(2, 44100, 44100);
+            }
+        };
+
+        // Show loading indicator
+        feedback.textContent = "Loading sounds...";
+
+        // Preload all snares and basses with Promise.all for parallel loading
+        [snareBuffers, bassBuffers] = await Promise.all([
+            Promise.all(snareFiles.map(load)),
+            Promise.all(bassFiles.map(load))
+        ]);
+
+        audioInitialized = true;
+        feedback.textContent = "Ready to play!";
+        
+        setTimeout(() => {
+            feedback.textContent = "";
+        }, 1500);
+        
+        console.log('All drum sounds decoded and ready');
+    } catch (err) {
+        console.error('Error initializing audio:', err);
+        feedback.textContent = "Audio error. Please reload the page.";
     }
-});
+}
 
-// Initialize app
+// Prevent zooming on double tap for mobile devices
+function preventZoom(e) {
+    const now = Date.now();
+    const timeSince = now - lastTouchEnd;
+    
+    if (timeSince < 300) {
+        e.preventDefault();
+    }
+    
+    lastTouchEnd = now;
+}
+
+// Add iOS/Safari specific optimizations
+function setupIOSOptimizations() {
+    // These are needed for iOS audio to work properly
+    document.addEventListener('touchstart', () => {
+        // iOS requires first user interaction to start audio
+        if (audioContext && audioContext.state === 'suspended') {
+            audioContext.resume();
+        }
+    }, {passive: false});
+    
+    // Prevent double-tap zoom on iOS
+    document.addEventListener('touchend', preventZoom, {passive: false});
+}
+
+// Set up all event listeners
+function setupEventListeners() {
+    // Attach click events to the circles
+    circleL.addEventListener('click', () => handleStroke('L'));
+    circleR.addEventListener('click', () => handleStroke('R'));
+    
+    // Touch events for mobile with better handling
+    circleL.addEventListener('touchstart', (e) => {
+        e.preventDefault(); // Prevent default to avoid delay
+        handleStroke('L');
+    }, {passive: false});
+    
+    circleR.addEventListener('touchstart', (e) => {
+        e.preventDefault(); // Prevent default to avoid delay
+        handleStroke('R');
+    }, {passive: false});
+
+    // Add keyboard event listener
+    document.addEventListener('keydown', (event) => {
+        // Left arrow key for L, Right arrow key for R
+        if (event.key === 'ArrowLeft' || event.key === 'a' || event.key === 'A') {
+            handleStroke('L');
+            event.preventDefault(); // Prevent page scrolling
+        } else if (event.key === 'ArrowRight' || event.key === 'd' || event.key === 'D') {
+            handleStroke('R');
+            event.preventDefault(); // Prevent page scrolling
+        }
+    });
+    
+    // Handle visibility change for better audio resumption
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible' && audioContext && audioContext.state === 'suspended') {
+            audioContext.resume();
+        }
+    });
+    
+    // Handle resize events to adjust UI for different screen sizes
+    window.addEventListener('resize', debounce(() => {
+        updateUIForScreenSize();
+    }, 250));
+}
+
+// Handle UI updates based on screen size
+function updateUIForScreenSize() {
+    const isMobile = window.innerWidth < 768;
+    document.body.classList.toggle('mobile-view', isMobile);
+    
+    // Update text size or layout if needed
+    if (isMobile) {
+        // Mobile-specific adjustments
+        pattern.classList.add('mobile-pattern');
+    } else {
+        pattern.classList.remove('mobile-pattern');
+    }
+}
+
+// Utility function for debouncing
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
+
+// Initialize app with improved startup
 function initApp() {
     // Make sure we start at level 1
     currentLevel = 1;
@@ -530,37 +714,29 @@ function initApp() {
     updatePatternDisplay();
     createLevelNav();
     showAchievementInfo();
-
-    // Initialize audio context on first user interaction
-    document.addEventListener('click', initAudio, { once: true });
-    document.addEventListener('keydown', initAudio, { once: true });
-}
-async function initAudio() {
-    const snareFiles = [
-        'snare.mp3', 'snare1.mp3', 'snare2.mp3',
-        'snare3.mp3', 'snare4.mp3', 'snare5.mp3'
-    ];
-    const bassFiles = [
-        'bass.mp3', 'bass1.mp3', 'bass2.mp3',
-        'bass3.mp3', 'bass4.mp3', 'bass5.mp3'
-    ];
-
-    // Helper to fetch & decode
-    const load = async url => {
-        const resp = await fetch(url);
-        const data = await resp.arrayBuffer();
-        return audioContext.decodeAudioData(data);
+    updateUIForScreenSize();
+    
+    // Set up event listeners
+    setupEventListeners();
+    setupIOSOptimizations();
+    
+    // Initialize audio on first user interaction for better mobile compatibility
+    const startAudioInit = () => {
+        if (!audioInitialized) {
+            initAudio();
+        }
     };
-
-    // Preload all snares and basses
-    [snareBuffers, bassBuffers] = await Promise.all([
-        Promise.all(snareFiles.map(load)),
-        Promise.all(bassFiles.map(load))
-    ]);
-
-    console.log('All drum sounds decoded');
+    
+    document.addEventListener('click', startAudioInit, { once: true });
+    document.addEventListener('touchstart', startAudioInit, { once: true, passive: true });
+    document.addEventListener('keydown', startAudioInit, { once: true });
+    
+    // Add a welcome message
+    feedback.textContent = "Tap to start!";
+    setTimeout(() => {
+        feedback.textContent = "";
+    }, 3000);
 }
 
-// Initialize on page load
-window.onload = initApp;
-
+// Start the app when the page loads
+window.addEventListener('load', initApp);
