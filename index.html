@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Pressure-Sensitive Drum</title>
   <style>
     body {
@@ -14,62 +14,79 @@
       margin: 0;
       touch-action: none;
     }
+
     #drum {
-      width: 256px; /* Optimized size for mobile */
+      width: 256px;
       height: 256px;
       background-image: url('snareimg.jpg');
       background-size: cover;
       background-position: center;
       border-radius: 50%;
       border: 4px solid #fff;
-      cursor: pointer;
+      box-shadow: 0 0 20px rgba(255, 255, 255, 0.2);
+      transition: background-color 0.1s ease, box-shadow 0.1s ease;
+      position: relative;
+    }
+
+    #overlay {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      background-color: rgba(255, 0, 0, 0); /* Red overlay with 0 opacity initially */
+      pointer-events: none;
     }
   </style>
 </head>
 <body>
 
-  <div id="drum"></div>
+  <div id="drum">
+    <div id="overlay"></div>
+  </div>
 
   <script>
-    // Initialize the Web Audio API for optimized playback
+    const drum = document.getElementById("drum");
+    const overlay = document.getElementById("overlay");
+
+    // Audio setup using Web Audio API
     const audioContext = new (window.AudioContext || window.webkitAudioContext)();
     let soundBuffer;
 
-    // Load the audio sample at a high sample rate (optimize for Android)
-    fetch('snare.mp3')
+    fetch('snare1.mp3')
       .then(response => response.arrayBuffer())
       .then(data => audioContext.decodeAudioData(data, buffer => {
         soundBuffer = buffer;
       }));
 
-    const drum = document.getElementById("drum");
-
     drum.addEventListener("touchstart", function (e) {
       const pressure = e.touches[0].force || e.touches[0].pressure || 0;
 
-      // Categorize pressure and map to volume
-      let volume = 1.0;
-      if (pressure < 0.33) {
-        volume = 0.33; // Light
-      } else if (pressure < 0.66) {
-        volume = 0.66; // Medium
-      } else {
-        volume = 1.0;  // Hard
-      }
+      // Clamp and scale pressure
+      const clamped = Math.min(Math.max(pressure, 0), 1);
+
+      // Update color intensity visually (from transparent to solid red)
+      overlay.style.backgroundColor = `rgba(255, 0, 0, ${clamped})`;
+
+      // Map pressure to volume
+      let volume;
+      if (clamped < 0.33) volume = 0.33;
+      else if (clamped < 0.66) volume = 0.66;
+      else volume = 1.0;
 
       if (soundBuffer) {
-        // Create the sound source and adjust volume based on pressure
         const source = audioContext.createBufferSource();
         source.buffer = soundBuffer;
 
         const gainNode = audioContext.createGain();
         gainNode.gain.setValueAtTime(volume, audioContext.currentTime);
 
-        source.connect(gainNode);
-        gainNode.connect(audioContext.destination);
-
-        source.start(0); // Play the sound immediately
+        source.connect(gainNode).connect(audioContext.destination);
+        source.start(0);
       }
+    });
+
+    drum.addEventListener("touchend", () => {
+      overlay.style.backgroundColor = 'rgba(255, 0, 0, 0)'; // Reset
     });
   </script>
 
