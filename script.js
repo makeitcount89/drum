@@ -19,7 +19,7 @@ function createOptimizedAudioContext() {
     
     const contextOptions = {
         latencyHint: 'balanced',
-        sampleRate: 12000
+        sampleRate: 6000
     };
     
     // Create audio context with optimized settings
@@ -36,7 +36,7 @@ function createOptimizedAudioContext() {
     // For older Android: Try to use older ScriptProcessor with small buffer
     if (navigator.userAgent.toLowerCase().includes('android') && ctx.createScriptProcessor) {
         // Create an unused processor with small buffer to influence the audio system
-        const bufferSize = 240; // Smallest safe value for most Android devices
+        const bufferSize = 256; // Smallest safe value for most Android devices
         const unusedProcessor = ctx.createScriptProcessor(bufferSize, 1, 1);
         unusedProcessor.connect(ctx.destination); // This forces the audio system to use smaller buffers
         
