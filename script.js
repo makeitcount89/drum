@@ -43,18 +43,55 @@ let achievements = {
 
 // Rudiment patterns - placeholder as requested
 const rudiments = {
-    // This is a placeholder for rudiments data
-    // The actual rudiments data would go here
-    1: {
-        name: "Single Stroke Roll",
-        pattern: ['R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L'],
+     {
+        name: "Double Stroke Roll",
+        pattern: ['R', 'R', 'L', 'L', 'R', 'R', 'L', 'L', 'R', 'R', 'L', 'L', 'R', 'R', 'L', 'L'],
         thresholds: { bronze: 60, silver: 120, gold: 160 }
     },
-    // More rudiments would go here...
-    20: {
+    {
+        name: "Single Paradiddle",
+        pattern: ['R', 'L', 'R', 'R', 'L', 'R', 'L', 'L', 'R', 'L', 'R', 'R', 'L', 'R', 'L', 'L'],
+        thresholds: { bronze: 70, silver: 130, gold: 180 }
+    },
+    { 
+        name: "Five Stroke Roll",
+        pattern: ['R', 'R', 'L', 'L', 'R', 'L', 'L', 'R', 'R', 'L', 'R', 'R', 'L', 'L', 'R', 'L'],
+        thresholds: { bronze: 80, silver: 140, gold: 190 }
+    },
+     {
+        name: "Flam",
+        pattern: ['rR', 'lL', 'rR', 'lL', 'rR', 'lL', 'rR', 'lL', 'rR', 'lL', 'rR', 'lL', 'rR', 'lL', 'rR', 'lL'],
+        thresholds: { bronze: 90, silver: 150, gold: 200 }
+    },
+     {
+        name: "Double Paradiddle",
+        pattern: ['R', 'L', 'R', 'L', 'R', 'R', 'L', 'R', 'L', 'R', 'L', 'L', 'R', 'L', 'R', 'L'],
+        thresholds: { bronze: 100, silver: 160, gold: 220 }
+    },
+     {
+        name: "Flam Paradiddle",
+        pattern: ['rR', 'L', 'R', 'R', 'lL', 'R', 'L', 'L', 'rR', 'L', 'R', 'R', 'lL', 'R', 'L', 'L'],
+        thresholds: { bronze: 110, silver: 170, gold: 240 }
+    },
+    {
         name: "Six Stroke Roll",
-        pattern: ['R', 'L', 'R', 'R', 'L', 'L', 'R', 'R', 'L', 'L', 'R', 'R', 'L', 'L', 'R', 'R'],
-        thresholds: { bronze: 180, silver: 280, gold: 380 }
+        pattern: ['R', 'L', 'R', 'R', 'L', 'L', 'R', 'L', 'R', 'R', 'L', 'L', 'R', 'L', 'R', 'R'],
+        thresholds: { bronze: 120, silver: 180, gold: 260 }
+    },
+     {
+        name: "Flam Tap",
+        pattern: ['rR', 'L', 'lL', 'R', 'rR', 'L', 'lL', 'R', 'rR', 'L', 'lL', 'R', 'rR', 'L', 'lL', 'R'],
+        thresholds: { bronze: 130, silver: 200, gold: 280 }
+    },
+     {
+        name: "Ratamacue",
+        pattern: ['R', 'L', 'R', 'L', 'R', 'rR', 'L', 'R', 'L', 'R', 'lL', 'R', 'L', 'R', 'L', 'R'],
+        thresholds: { bronze: 140, silver: 230, gold: 320 }
+    },
+     {
+        name: "Swiss Army Triplet",
+        pattern: ['rR', 'L', 'R', 'lL', 'R', 'L', 'rR', 'L', 'R', 'lL', 'R', 'L', 'rR', 'L', 'R', 'lL'],
+        thresholds: { bronze: 160, silver: 260, gold: 380 }
     }
 };
 
