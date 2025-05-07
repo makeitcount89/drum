@@ -36,7 +36,7 @@
     let soundBuffer;
 
     // Load the audio sample at a high sample rate (optimize for Android)
-    fetch('tap.mp3')
+    fetch('snare.mp3')
       .then(response => response.arrayBuffer())
       .then(data => audioContext.decodeAudioData(data, buffer => {
         soundBuffer = buffer;
