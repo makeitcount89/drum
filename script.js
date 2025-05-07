@@ -113,6 +113,9 @@ function createLevelNav() {
         btn.className = 'level-btn';
         if (level === currentLevel) {
             btn.classList.add('active');
+            btn.style.backgroundColor = '#0077ff'; // Add blue background color
+            btn.style.color = 'white'; // Change text color to white for better contrast
+          
             btn.setAttribute('aria-current', 'true');
         }
 
