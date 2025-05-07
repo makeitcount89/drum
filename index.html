@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Pressure-Sensitive Drum</title>
   <style>
     body {
@@ -11,43 +12,64 @@
       align-items: center;
       height: 100vh;
       margin: 0;
+      touch-action: none;
     }
     #drum {
-      width: 200px;
-      height: 200px;
+      width: 256px; /* Optimized size for mobile */
+      height: 256px;
       background-image: url('snareimg.jpg');
       background-size: cover;
       background-position: center;
       border-radius: 50%;
       border: 4px solid #fff;
+      cursor: pointer;
     }
   </style>
 </head>
 <body>
 
-  <audio id="tapSound" src="snare.mp3" preload="auto"></audio>
-
   <div id="drum"></div>
 
   <script>
+    // Initialize the Web Audio API for optimized playback
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    let soundBuffer;
+
+    // Load the audio sample at a high sample rate (optimize for Android)
+    fetch('tap.mp3')
+      .then(response => response.arrayBuffer())
+      .then(data => audioContext.decodeAudioData(data, buffer => {
+        soundBuffer = buffer;
+      }));
+
     const drum = document.getElementById("drum");
-    const sound = document.getElementById("tapSound");
 
     drum.addEventListener("touchstart", function (e) {
       const pressure = e.touches[0].force || e.touches[0].pressure || 0;
 
-      let volume;
+      // Categorize pressure and map to volume
+      let volume = 1.0;
       if (pressure < 0.33) {
-        volume = 0.33;
+        volume = 0.33; // Light
       } else if (pressure < 0.66) {
-        volume = 0.66;
+        volume = 0.66; // Medium
       } else {
-        volume = 1.0;
+        volume = 1.0;  // Hard
       }
 
-      sound.volume = volume;
-      sound.currentTime = 0;
-      sound.play();
+      if (soundBuffer) {
+        // Create the sound source and adjust volume based on pressure
+        const source = audioContext.createBufferSource();
+        source.buffer = soundBuffer;
+
+        const gainNode = audioContext.createGain();
+        gainNode.gain.setValueAtTime(volume, audioContext.currentTime);
+
+        source.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+
+        source.start(0); // Play the sound immediately
+      }
     });
   </script>
 
