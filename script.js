@@ -298,16 +298,18 @@ function advanceLevel() {
 
     // Progress to next level if available, otherwise stay on current
     if (currentLevel < Object.keys(rudiments).length) {
+        // Update navigation BEFORE changing the level
+        createLevelNav();
+        
         currentLevel++;
         currentPattern = rudiments[currentLevel].pattern;
         levelDisplay.textContent = `Level ${currentLevel}: ${rudiments[currentLevel].name}`;
         updatePatternDisplay();
     } else {
         feedback.textContent = "You've completed all levels!";
+        // Still update navigation to show final level trophy
+        createLevelNav();
     }
-
-    // Update navigation
-    createLevelNav();
 
     // Update achievement display
     showAchievementInfo();
