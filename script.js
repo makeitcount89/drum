@@ -826,3 +826,385 @@ function preventZoom(e) {
     
     lastTouchEnd = now;
 }
+// Setup event listeners for drum pad interaction
+function setupEventListeners() {
+    // Touch events for mobile with Android-specific optimizations
+    circleR.addEventListener('touchstart', function(e) {
+        e.preventDefault(); // Prevent default to avoid delays on Android
+        handleStroke('R');
+        touchStartTime = Date.now();
+    }, { passive: false });
+
+    circleL.addEventListener('touchstart', function(e) {
+        e.preventDefault(); // Prevent default to avoid delays on Android
+        handleStroke('L');
+        touchStartTime = Date.now();
+    }, { passive: false });
+
+    // Mouse events for desktop
+    circleR.addEventListener('mousedown', function() {
+        handleStroke('R');
+    });
+
+    circleL.addEventListener('mousedown', function() {
+        handleStroke('L');
+    });
+
+    // Keyboard events for accessibility
+    document.addEventListener('keydown', function(e) {
+        // Only trigger if not typing in an input
+        if (document.activeElement.tagName !== 'INPUT' && 
+            document.activeElement.tagName !== 'TEXTAREA') {
+            
+            if (e.key === 'd' || e.key === 'D') {
+                handleStroke('R');
+                flashCircle(circleR);
+            } else if (e.key === 'a' || e.key === 'A') {
+                handleStroke('L');
+                flashCircle(circleL);
+            }
+        }
+    });
+
+    // Prevent double-tap zoom on Android
+    document.addEventListener('touchend', preventZoom, { passive: false });
+
+    // Prevent context menu on long press for Android
+    document.addEventListener('contextmenu', function(e) {
+        if (/Android/i.test(navigator.userAgent)) {
+            e.preventDefault();
+            return false;
+        }
+    });
+
+    // Service worker registration for PWA support
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function() {
+            navigator.serviceWorker.register('/sw.js').then(function(registration) {
+                console.log('ServiceWorker registration successful');
+            }).catch(function(err) {
+                console.log('ServiceWorker registration failed:', err);
+            });
+        });
+    }
+
+    // Handle visibility change for better Android performance
+    document.addEventListener('visibilitychange', function() {
+        if (document.hidden) {
+            // Pause audio processing when app is in background
+            if (audioContext && audioContext.state === 'running') {
+                try {
+                    audioContext.suspend();
+                } catch (e) {
+                    console.log('Could not suspend audio context:', e);
+                }
+            }
+        } else {
+            // Resume audio when app is visible again
+            if (audioContext && audioContext.state === 'suspended') {
+                try {
+                    audioContext.resume();
+                } catch (e) {
+                    console.log('Could not resume audio context:', e);
+                }
+            }
+        }
+    });
+
+    // Setup full screen mode for Android
+    const fullscreenButton = document.getElementById('fullscreen-button');
+    if (fullscreenButton) {
+        fullscreenButton.addEventListener('click', function() {
+            if (document.documentElement.requestFullscreen) {
+                document.documentElement.requestFullscreen();
+            } else if (document.documentElement.webkitRequestFullscreen) {
+                document.documentElement.webkitRequestFullscreen();
+            }
+        });
+    }
+}
+
+// Initialize app with optimized startup sequence
+function initApp() {
+    // Create level navigation
+    createLevelNav();
+    
+    // Set up pattern display
+    levelDisplay.textContent = `Level ${currentLevel}: ${rudiments[currentLevel].name}`;
+    updatePatternDisplay();
+    
+    // Show achievement info
+    showAchievementInfo();
+    
+    // Setup event listeners
+    setupEventListeners();
+    
+    // Add Android-specific touch class if needed
+    if (/Android/i.test(navigator.userAgent)) {
+        document.body.classList.add('android-device');
+    }
+    
+    // Optimize for Android touch experience
+    document.addEventListener('touchstart', function() {
+        // Initialize audio on first touch (required for Android)
+        if (!audioInitialized) {
+            initAudio();
+        }
+    }, { once: true, passive: true });
+    
+    // Add orientation change handler for Android
+    window.addEventListener('orientationchange', function() {
+        // Small delay to let the orientation change complete
+        setTimeout(function() {
+            // Adjust UI based on orientation
+            const isLandscape = window.innerWidth > window.innerHeight;
+            if (isLandscape) {
+                document.body.classList.add('landscape');
+            } else {
+                document.body.classList.remove('landscape');
+            }
+        }, 300);
+    });
+    
+    // Set up network status monitoring
+    setupNetworkMonitoring();
+    
+    // Preload images for better performance
+    preloadImages();
+    
+    // Setup battery optimization
+    setupBatteryOptimization();
+    
+    // Initial setup complete
+    console.log('Drum rudiment app initialized!');
+}
+
+// Setup network status monitoring
+function setupNetworkMonitoring() {
+    if ('connection' in navigator) {
+        const connection = navigator.connection;
+        
+        const updateConnectionStatus = () => {
+            if (connection.saveData) {
+                // User has requested reduced data usage
+                // Lower sound quality or disable certain features
+                console.log('Data Saver enabled - reducing resource usage');
+            }
+            
+            // Adjust based on connection type
+            if (connection.effectiveType === 'slow-2g' || connection.effectiveType === '2g') {
+                // Minimal experience for very slow connections
+                console.log('Slow connection detected - using minimal mode');
+            }
+        };
+        
+        // Update on changes
+        connection.addEventListener('change', updateConnectionStatus);
+        
+        // Initial check
+        updateConnectionStatus();
+    }
+}
+
+// Preload images for better performance
+function preloadImages() {
+    // List of images to preload
+    const images = [
+        'img/background.png',
+        'img/drum-left.png',
+        'img/drum-right.png',
+        'img/trophy-bronze.png',
+        'img/trophy-silver.png',
+        'img/trophy-gold.png'
+    ];
+    
+    images.forEach(src => {
+        const img = new Image();
+        img.src = src;
+    });
+}
+
+// Setup battery optimization for Android
+function setupBatteryOptimization() {
+    if ('getBattery' in navigator) {
+        navigator.getBattery().then(battery => {
+            const handleBatteryChange = () => {
+                // If battery level is low, reduce animations and background processes
+                if (battery.level < 0.15 && !battery.charging) {
+                    document.body.classList.add('power-saving');
+                    console.log('Low battery mode enabled');
+                } else {
+                    document.body.classList.remove('power-saving');
+                }
+            };
+            
+            // Listen for battery changes
+            battery.addEventListener('levelchange', handleBatteryChange);
+            battery.addEventListener('chargingchange', handleBatteryChange);
+            
+            // Initial check
+            handleBatteryChange();
+        });
+    }
+}
+
+// Share achievements function
+function shareAchievements() {
+    // Count achievements
+    let bronzeCount = 0, silverCount = 0, goldCount = 0;
+    
+    Object.values(achievements).forEach(achievement => {
+        if (achievement === 'bronze') bronzeCount++;
+        if (achievement === 'silver') silverCount++;
+        if (achievement === 'gold') goldCount++;
+    });
+    
+    // Create share text
+    const shareText = `I've mastered ${Object.keys(achievements).filter(k => achievements[k]).length} drum rudiments with ${goldCount} gold, ${silverCount} silver, and ${bronzeCount} bronze achievements! Try Drum Rudiment Trainer!`;
+    
+    // Share via Web Share API if available
+    if (navigator.share) {
+        navigator.share({
+            title: 'My Drum Rudiments Progress',
+            text: shareText,
+            url: window.location.href
+        })
+        .catch(err => console.log('Error sharing:', err));
+    } else {
+        // Fallback: copy to clipboard
+        navigator.clipboard.writeText(shareText)
+            .then(() => {
+                feedback.textContent = "Achievements copied to clipboard!";
+                setTimeout(() => {
+                    feedback.textContent = "";
+                }, 2000);
+            })
+            .catch(err => console.log('Error copying text:', err));
+    }
+}
+
+// Reset progress function
+function resetProgress() {
+    if (confirm("Are you sure you want to reset all your progress?")) {
+        // Reset achievements
+        Object.keys(achievements).forEach(key => {
+            achievements[key] = null;
+        });
+        
+        // Reset to level 1
+        currentLevel = 1;
+        currentPattern = rudiments[currentLevel].pattern;
+        currentSoundSet = 1;
+        
+        // Reset UI
+        levelDisplay.textContent = `Level ${currentLevel}: ${rudiments[currentLevel].name}`;
+        updatePatternDisplay();
+        currentPatternIndex = 0;
+        startTime = null;
+        
+        // Update navigation
+        createLevelNav();
+        showAchievementInfo();
+        
+        // Save to local storage
+        saveProgress();
+        
+        feedback.textContent = "Progress reset!";
+        setTimeout(() => {
+            feedback.textContent = "";
+        }, 2000);
+    }
+}
+
+// Save progress to local storage
+function saveProgress() {
+    try {
+        localStorage.setItem('drumAchievements', JSON.stringify(achievements));
+        localStorage.setItem('drumLevel', currentLevel);
+        localStorage.setItem('drumSoundSet', currentSoundSet);
+        return true;
+    } catch (e) {
+        console.error('Failed to save progress:', e);
+        return false;
+    }
+}
+
+// Load progress from local storage
+function loadProgress() {
+    try {
+        const savedAchievements = localStorage.getItem('drumAchievements');
+        const savedLevel = localStorage.getItem('drumLevel');
+        const savedSoundSet = localStorage.getItem('drumSoundSet');
+        
+        if (savedAchievements) {
+            achievements = JSON.parse(savedAchievements);
+        }
+        
+        if (savedLevel) {
+            currentLevel = parseInt(savedLevel);
+            currentPattern = rudiments[currentLevel].pattern;
+        }
+        
+        if (savedSoundSet) {
+            currentSoundSet = parseInt(savedSoundSet);
+        }
+        
+        return true;
+    } catch (e) {
+        console.error('Failed to load progress:', e);
+        return false;
+    }
+}
+
+// Auto-save progress
+function setupAutoSave() {
+    // Save progress every minute and on level completion
+    setInterval(saveProgress, 60000);
+}
+
+// Add share button event listener
+document.addEventListener('DOMContentLoaded', function() {
+    const shareButton = document.getElementById('share-button');
+    if (shareButton) {
+        shareButton.addEventListener('click', shareAchievements);
+    }
+    
+    const resetButton = document.getElementById('reset-button');
+    if (resetButton) {
+        resetButton.addEventListener('click', resetProgress);
+    }
+    
+    // Try to load saved progress
+    if (loadProgress()) {
+        console.log('Saved progress loaded');
+    } else {
+        console.log('No saved progress found, starting fresh');
+    }
+    
+    // Setup auto-save
+    setupAutoSave();
+    
+    // Initialize the app
+    initApp();
+});
+
+// Handle online/offline events
+window.addEventListener('online', function() {
+    console.log('App is online');
+    // Re-enable online features if needed
+});
+
+window.addEventListener('offline', function() {
+    console.log('App is offline');
+    // Disable features that require connectivity
+});
+
+// Export functions for testing
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = {
+        handleStroke,
+        calculateBPM,
+        getAchievement,
+        advanceLevel
+    };
+}
