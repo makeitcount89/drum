@@ -1193,8 +1193,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
 
 
-
-circles.forEach(circle => {
+document.addEventListener('DOMContentLoaded', () => {
+  circles.forEach(circle => {
   circle.addEventListener("touchstart", function (e) {
     const touch = e.touches[0];
     const rect = this.getBoundingClientRect();
@@ -1241,7 +1241,7 @@ circles.forEach(circle => {
     overlay.style.backgroundColor = 'rgba(0, 0, 0, 0)'; // Reset
   });
 });
-
+};
 // Handle online/offline events
 window.addEventListener('online', function() {
     console.log('App is online');
