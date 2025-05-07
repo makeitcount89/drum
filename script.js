@@ -8,6 +8,10 @@ const levelDisplay = document.getElementById('level-display');
 const levelNotification = document.getElementById('level-notification');
 const achievementDisplay = document.getElementById('achievement-display');
 const levelNav = document.getElementById('level-nav');
+const circles = document.querySelectorAll(".circle");
+const overlay = document.getElementById("overlay");
+
+
 
 // Create audio context with optimized Android settings
 let audioContext;
@@ -1188,18 +1192,7 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 
-const circles = document.querySelectorAll(".circle");
-const overlay = document.getElementById("overlay");
 
-const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-let soundBuffer;
-
-// Load audio
-fetch('snare1.mp3')
-  .then(response => response.arrayBuffer())
-  .then(data => audioContext.decodeAudioData(data, buffer => {
-    soundBuffer = buffer;
-  }));
 
 circles.forEach(circle => {
   circle.addEventListener("touchstart", function (e) {
