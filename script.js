@@ -211,8 +211,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-// Optimized sound playback with pre-buffering and Android-specific low latency
-function playSound(hand) {
+function playSound(hand, volume = 1.0) {
     if (!audioInitialized) {
         initAudio();
         return;
@@ -234,18 +233,15 @@ function playSound(hand) {
         const source = audioContext.createBufferSource();
         source.buffer = buf;
         
-        // Android optimization: reuse gain node instead of creating new ones
-        if (!cachedGainNode) {
-            cachedGainNode = audioContext.createGain();
-            cachedGainNode.gain.value = 1.0;
-            cachedGainNode.connect(audioContext.destination);
-        }
+        // Create a new gain node to control volume based on position
+        const gainNode = audioContext.createGain();
+        gainNode.gain.value = volume; // Set volume based on tap position
         
-        // Connect to the reused gain node for better performance
-        source.connect(cachedGainNode);
+        // Connect source to gain node, then to destination
+        source.connect(gainNode);
+        gainNode.connect(audioContext.destination);
         
         // Android optimization: schedule sound to start *immediately*
-        // Using 0 instead of audioContext.currentTime can reduce latency on many devices
         source.start(0);
         
         // Store the source node for potential later cleanup
@@ -265,6 +261,7 @@ function playSound(hand) {
         }
     }
 }
+
 
 // Clean up completed source nodes with optimized memory management
 function cleanupSourceNodes() {
@@ -424,11 +421,21 @@ function changeLevel(level) {
 }
 
 // Enhanced circle flash animation with visual feedback
-function flashCircle(circle) {
+function flashCircle(circle, color = null) {
     circle.classList.add('flash');
     
-    // Android performance optimization: use transform for animation
-    // Hardware accelerated on most Android devices
+    // If color provided, apply it to the circle
+    if (color) {
+        // Store original background to restore later
+        const originalBackground = circle.style.background;
+        circle.style.background = color;
+        
+        setTimeout(() => {
+            circle.style.background = originalBackground;
+        }, 150);
+    }
+    
+    // Hardware accelerated animation
     circle.style.transform = 'scale(1.1)';
     
     setTimeout(() => {
@@ -560,8 +567,7 @@ function getAchievement(bpm) {
     return 'bronze'; // Minimum achievement is bronze
 }
 
-// Handle stroke input with Android optimizations for lower latency
-function handleStroke(hand) {
+function handleStroke(hand, volume = 1.0, color = null) {
     // First check if audio ready - on Android this is crucial
     if (!audioInitialized) {
         initAudio();
@@ -573,13 +579,12 @@ function handleStroke(hand) {
         audioContext.resume();
     }
     
-    // Android optimization: Play sound FIRST before visual updates
-    // This helps reduce audio latency by prioritizing audio processing
-    playSound(hand);
+    // Play sound with volume based on position
+    playSound(hand, volume);
 
-    // AFTER triggering audio, update visuals
+    // Update visuals with color based on position
     const circle = hand === 'L' ? circleL : circleR;
-    flashCircle(circle);
+    flashCircle(circle, color);
 
     // Start timing from first correct hit
     if (currentPatternIndex === 0 && hand === currentPattern[0]) {
@@ -831,39 +836,130 @@ function preventZoom(e) {
     lastTouchEnd = now;
 }// Setup event listeners for drum pad interaction
 function setupEventListeners() {
+    // Function to calculate position-based volume and color
+    function calculatePositionEffects(element, clientX, clientY) {
+        const rect = element.getBoundingClientRect();
+        const centerX = rect.left + rect.width / 2;
+        const centerY = rect.top + rect.height / 2;
+        const dx = clientX - centerX;
+        const dy = clientY - centerY;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        const radius = rect.width / 2;
+        const normDist = distance / radius;
+        
+        let volume, color;
+        
+        // Determine volume and color based on distance from center
+        if (normDist <= 0.33) {
+            // Center hit - full volume
+            volume = 1.0;
+            color = 'radial-gradient(circle, rgba(255,0,0,0.7) 0%, rgba(255,0,0,0) 70%)';
+        } else if (normDist <= 0.66) {
+            // Mid area - medium volume
+            volume = 0.7;
+            color = 'radial-gradient(circle, rgba(255,165,0,0.7) 0%, rgba(255,165,0,0) 70%)';
+        } else if (normDist <= 1.0) {
+            // Edge hit - low volume
+            volume = 0.4;
+            color = 'radial-gradient(circle, rgba(255,255,0,0.7) 0%, rgba(255,255,0,0) 70%)';
+        } else {
+            // Outside drum - very low volume (shouldn't happen with proper hit detection)
+            volume = 0.2;
+            color = 'none';
+        }
+        
+        return { volume, color };
+    }
+
     // Touch events for mobile with Android-specific optimizations
     circleR.addEventListener('touchstart', function(e) {
         e.preventDefault(); // Prevent default to avoid delays on Android
-        handleStroke('R');
+        
+        const touch = e.touches[0];
+        const effects = calculatePositionEffects(circleR, touch.clientX, touch.clientY);
+        
+        handleStroke('R', effects.volume, effects.color);
         touchStartTime = Date.now();
+        
+        // Show visual effect at touch point
+        if (overlay) {
+            overlay.style.opacity = '1';
+            overlay.style.background = effects.color;
+            overlay.style.left = (touch.clientX - 50) + 'px';
+            overlay.style.top = (touch.clientY - 50) + 'px';
+        }
     }, { passive: false });
 
     circleL.addEventListener('touchstart', function(e) {
         e.preventDefault(); // Prevent default to avoid delays on Android
-        handleStroke('L');
+        
+        const touch = e.touches[0];
+        const effects = calculatePositionEffects(circleL, touch.clientX, touch.clientY);
+        
+        handleStroke('L', effects.volume, effects.color);
         touchStartTime = Date.now();
+        
+        // Show visual effect at touch point
+        if (overlay) {
+            overlay.style.opacity = '1';
+            overlay.style.background = effects.color;
+            overlay.style.left = (touch.clientX - 50) + 'px';
+            overlay.style.top = (touch.clientY - 50) + 'px';
+        }
     }, { passive: false });
 
-    // Mouse events for desktop
-    circleR.addEventListener('mousedown', function() {
-        handleStroke('R');
+    // Handle touch end to reset overlay
+    document.addEventListener('touchend', function() {
+        if (overlay) {
+            overlay.style.opacity = '0';
+        }
     });
 
-    circleL.addEventListener('mousedown', function() {
-        handleStroke('L');
+    // Mouse events for desktop with position detection
+    circleR.addEventListener('mousedown', function(e) {
+        const effects = calculatePositionEffects(circleR, e.clientX, e.clientY);
+        handleStroke('R', effects.volume, effects.color);
+        
+        // Show visual effect at click point
+        if (overlay) {
+            overlay.style.opacity = '1';
+            overlay.style.background = effects.color;
+            overlay.style.left = (e.clientX - 50) + 'px';
+            overlay.style.top = (e.clientY - 50) + 'px';
+        }
     });
 
-    // Keyboard events for accessibility
+    circleL.addEventListener('mousedown', function(e) {
+        const effects = calculatePositionEffects(circleL, e.clientX, e.clientY);
+        handleStroke('L', effects.volume, effects.color);
+        
+        // Show visual effect at click point
+        if (overlay) {
+            overlay.style.opacity = '1';
+            overlay.style.background = effects.color;
+            overlay.style.left = (e.clientX - 50) + 'px';
+            overlay.style.top = (e.clientY - 50) + 'px';
+        }
+    });
+    
+    // Handle mouse up to reset overlay
+    document.addEventListener('mouseup', function() {
+        if (overlay) {
+            overlay.style.opacity = '0';
+        }
+    });
+
+    // Keyboard events for accessibility - use default volume since no position info
     document.addEventListener('keydown', function(e) {
         // Only trigger if not typing in an input
         if (document.activeElement.tagName !== 'INPUT' && 
             document.activeElement.tagName !== 'TEXTAREA') {
             
             if (e.key === 'd' || e.key === 'D') {
-                handleStroke('R');
+                handleStroke('R', 1.0);
                 flashCircle(circleR);
             } else if (e.key === 'a' || e.key === 'A') {
-                handleStroke('L');
+                handleStroke('L', 1.0);
                 flashCircle(circleL);
             }
         }
@@ -927,6 +1023,50 @@ function setupEventListeners() {
     }
 }
 
+// Add CSS styles for the overlay
+function addOverlayStyles() {
+    // Check if we already have style element
+    let styleEl = document.getElementById('drum-overlay-styles');
+    
+    if (!styleEl) {
+        styleEl = document.createElement('style');
+        styleEl.id = 'drum-overlay-styles';
+        
+        styleEl.innerHTML = `
+            #overlay {
+                position: absolute;
+                width: 100px;
+                height: 100px;
+                border-radius: 50%;
+                pointer-events: none;
+                opacity: 0;
+                transition: opacity 0.15s ease-out;
+                z-index: 1000;
+            }
+            
+            .circle {
+                position: relative;
+                overflow: visible; /* Allow effects to expand beyond boundary */
+            }
+        `;
+        
+        document.head.appendChild(styleEl);
+    }
+}
+
+// Initialize overlay during app startup
+function initOverlay() {
+    // Only create if it doesn't exist
+    if (!document.getElementById('overlay')) {
+        const overlay = document.createElement('div');
+        overlay.id = 'overlay';
+        document.body.appendChild(overlay);
+    }
+    
+    // Add the styles for overlay
+    addOverlayStyles();
+}
+
 // Initialize app with optimized startup sequence
 function initApp() {
     // Create level navigation
@@ -938,6 +1078,9 @@ function initApp() {
     
     // Show achievement info
     showAchievementInfo();
+
+    // Initialize overlay for visual feedback
+    initOverlay();
     
     // Setup event listeners
     setupEventListeners();
@@ -1193,55 +1336,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 
 
-document.addEventListener('DOMContentLoaded', () => {
-  circles.forEach(circle => {
-  circle.addEventListener("touchstart", function (e) {
-    const touch = e.touches[0];
-    const rect = this.getBoundingClientRect();
-    const centerX = rect.left + rect.width / 2;
-    const centerY = rect.top + rect.height / 2;
-    const dx = touch.clientX - centerX;
-    const dy = touch.clientY - centerY;
-    const distance = Math.sqrt(dx * dx + dy * dy);
-    const radius = rect.width / 2;
-    const normDist = distance / radius;
 
-    let volume = 0;
-    let color = '';
-
-    if (normDist <= 0.25) {
-      volume = 1.0;
-      color = 'rgba(255, 0, 0, 0.6)'; // Red
-    } else if (normDist <= 0.75) {
-      volume = 0.66;
-      color = 'rgba(255, 165, 0, 0.6)'; // Orange
-    } else if (normDist <= 1.0) {
-      volume = 0.33;
-      color = 'rgba(255, 255, 0, 0.6)'; // Yellow
-    } else {
-      volume = 0;
-      color = 'rgba(0, 0, 0, 0)';
-    }
-
-    overlay.style.backgroundColor = color;
-
-    if (soundBuffer && volume > 0) {
-      const source = audioContext.createBufferSource();
-      source.buffer = soundBuffer;
-
-      const gainNode = audioContext.createGain();
-      gainNode.gain.setValueAtTime(volume, audioContext.currentTime);
-
-      source.connect(gainNode).connect(audioContext.destination);
-      source.start(0);
-    }
-  });
-
-  circle.addEventListener("touchend", () => {
-    overlay.style.backgroundColor = 'rgba(0, 0, 0, 0)'; // Reset
-  });
-});
-});
 // Handle online/offline events
 window.addEventListener('online', function() {
     console.log('App is online');
