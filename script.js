@@ -16,12 +16,13 @@ const overlay = document.getElementById("overlay");
 // Create audio context with optimized Android settings
 let audioContext;
 let hitWorkletNode;
+let ctx = new (window.AudioContext || window.webkitAudioContext)(contextOptions);
+
 
 async function createOptimizedAudioContext() {
   // Android-specific optimizations
   const contextOptions = { latencyHint: 'balanced', sampleRate: 8000 };
-  const ctx = new (window.AudioContext || window.webkitAudioContext)(contextOptions);
-
+  
   // Register our AudioWorklet processor for low-latency playback
   if (ctx.audioWorklet && typeof AudioWorkletNode === 'function') {
     await ctx.audioWorklet.addModule('hit-player-processor.js');
