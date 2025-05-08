@@ -679,12 +679,12 @@ async function initAudio() {
                     xhr.onload = function() {
                         if (xhr.status === 200) {
                             // Decode with error handling
-                            audioContext.decodeAudioData(xhr.response, 
+                            ctx.decodeAudioData(xhr.response, 
                                 (buffer) => resolve(buffer),
                                 (err) => {
                                     console.error(`Error decoding ${url}:`, err);
                                     // Return an empty buffer as fallback
-                                    resolve(audioContext.createBuffer(2, 44100, 44100));
+                                    resolve(ctx.createBuffer(2, 44100, 44100));
                                 }
                             );
                         } else {
