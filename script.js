@@ -11,7 +11,37 @@ const levelNav = document.getElementById('level-nav');
 const circles = document.querySelectorAll(".circle");
 const overlay = document.getElementById("overlay");
 
-
+// Pre-create a pool of source nodes with buffers already attached
+let snareSourcePool = [];
+let bassSourcePool = [];
+const POOL_SIZE = 10; // Number of pre-allocated sources per sound type
+// Initialize the source pools during audio setup
+function initSourcePools() {
+    // Clear existing pools
+    snareSourcePool = [];
+    bassSourcePool = [];
+    
+    for (let i = 0; i < POOL_SIZE; i++) {
+        // Pre-create sources for each sound set
+        for (let setIdx = 0; setIdx < snareBuffers.length; setIdx++) {
+            if (snareBuffers[setIdx]) {
+                const source = audioContext.createBufferSource();
+                source.buffer = snareBuffers[setIdx];
+                source.connect(audioContext.destination);
+                source.poolIndex = setIdx;
+                snareSourcePool.push({ source, inUse: false });
+            }
+            
+            if (bassBuffers[setIdx]) {
+                const source = audioContext.createBufferSource();
+                source.buffer = bassBuffers[setIdx];
+                source.connect(audioContext.destination);
+                source.poolIndex = setIdx;
+                bassSourcePool.push({ source, inUse: false });
+            }
+        }
+    }
+}
 
 // Create audio context with optimized Android settings
 let audioContext;
@@ -223,36 +253,38 @@ function playSound(hand, volume = 1.0) {
     }
 
     try {
-        const buffers = hand === 'L' ? snareBuffers : bassBuffers;
-        const idx = Math.min(currentSoundSet - 1, buffers.length - 1);
-        const buf = buffers[idx];
-
-        if (!buf) return;  // safety check
-
-        // Create and configure source node with optimized settings
-        const source = audioContext.createBufferSource();
-        source.buffer = buf;
+        const sourcePool = hand === 'L' ? snareSourcePool : bassSourcePool;
+        const idx = Math.min(currentSoundSet - 1, sourcePool.length - 1);
         
-        // Create a new gain node to control volume based on position
-        const gainNode = audioContext.createGain();
-        gainNode.gain.value = volume; // Set volume based on tap position
+        // Find a free source from the pool
+        let sourceWrapper = sourcePool.find(sw => !sw.inUse && sw.source.poolIndex === idx);
         
-        // Connect source to gain node, then to destination
-        source.connect(gainNode);
-        gainNode.connect(audioContext.destination);
-        
-        // Android optimization: schedule sound to start *immediately*
-        source.start(0);
-        
-        // Store the source node for potential later cleanup
-        if (hand === 'L') {
-            snareSourceNodes.push({ source, startTime: audioContext.currentTime });
-        } else {
-            bassSourceNodes.push({ source, startTime: audioContext.currentTime });
+        // If no free source, create a new one
+        if (!sourceWrapper) {
+            const buffers = hand === 'L' ? snareBuffers : bassBuffers;
+            const buf = buffers[idx];
+            if (!buf) return;  // safety check
+            
+            const source = audioContext.createBufferSource();
+            source.buffer = buf;
+            source.connect(audioContext.destination);
+            source.poolIndex = idx;
+            
+            sourceWrapper = { source, inUse: false };
+            sourcePool.push(sourceWrapper);
         }
         
-        // Clean up old source nodes to prevent memory leaks
-        cleanupSourceNodes();
+        // Mark as in use
+        sourceWrapper.inUse = true;
+        
+        // Android optimization: schedule sound to start *immediately*
+        sourceWrapper.source.start(0);
+        
+        // Mark as free after sound completes
+        setTimeout(() => {
+            sourceWrapper.inUse = false;
+        }, 500); // Allow time for sound to complete
+        
     } catch (err) {
         console.error("Error playing sound:", err);
         // Attempt recovery if audio fails
@@ -261,7 +293,6 @@ function playSound(hand, volume = 1.0) {
         }
     }
 }
-
 
 // Clean up completed source nodes with optimized memory management
 function cleanupSourceNodes() {
