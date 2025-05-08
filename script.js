@@ -777,7 +777,43 @@ function handleStroke(hand, volume = 1.0) {
         }, 1000);
     }
 }
-
+// Android-specific audio setup
+function setupAndroidAudio(ctx) {
+    if (androidAudioSetup) return;
+    
+    // Check if we're on Android
+    const isAndroid = /android/i.test(navigator.userAgent);
+    
+    if (isAndroid) {
+        console.log('Android-specific audio optimizations applied');
+        
+        // Create and connect a silent oscillator to keep audio context active
+        // This helps reduce latency on Android devices
+        try {
+            const silentOsc = ctx.createOscillator();
+            silentOsc.frequency.value = 0;
+            silentOsc.connect(ctx.destination);
+            silentOsc.start();
+            // Don't stop it - we want it to keep the audio context hot
+            
+            // Set up a periodic ping to keep the audio system awake
+            setInterval(() => {
+                if (ctx.state === 'running') {
+                    // Create very short, silent buffer and play it
+                    const silentBuffer = ctx.createBuffer(1, 1, 44100);
+                    const source = ctx.createBufferSource();
+                    source.buffer = silentBuffer;
+                    source.connect(ctx.destination);
+                    source.start();
+                }
+            }, 3000); // Every 3 seconds
+        } catch (e) {
+            console.log('Silent oscillator setup failed:', e);
+        }
+    }
+    
+    androidAudioSetup = true;
+}
 // Modified setupEventListeners function to integrate positional sensing
 function setupEventListeners() {
     // Touch events for mobile with Android-specific optimizations
