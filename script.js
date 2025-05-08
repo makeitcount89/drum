@@ -13,14 +13,12 @@ const overlay = document.getElementById("overlay");
 
 
 
-// Create audio context with optimized Android settings
-let audioContext;
 let hitWorkletNode;
 let contextOptions = { latencyHint: 'balanced', sampleRate: 8000 };
-let ctx = new (window.AudioContext || window.webkitAudioContext)(contextOptions);
+let ctx = new (window.ctx || window.webkitctx)(contextOptions);
 
 
-async function createOptimizedAudioContext() {
+async function createOptimizedctx() {
   // Android-specific optimizations
   const contextOptions = { latencyHint: 'balanced', sampleRate: 8000 };
   
@@ -207,7 +205,7 @@ function playSound(hand, volume = 1.0) {
 async function initAudio() {
   if (audioInitialized) return;
   try {
-    audioContext = await createOptimizedAudioContext();
+    ctx = await createOptimizedctx();
 
     // Load sample URLs
     const snareFiles = ['snare.mp3','snare1.mp3','snare2.mp3','snare3.mp3','snare4.mp3','snare5.mp3'];
@@ -254,7 +252,7 @@ async function initAudio() {
 
 // Clean up completed source nodes with optimized memory management
 function cleanupSourceNodes() {
-    const currentTime = audioContext.currentTime;
+    const currentTime = ctx.currentTime;
     const cleanup = (nodes) => {
         let i = 0;
         while (i < nodes.length) {
@@ -564,8 +562,8 @@ function handleStroke(hand, volume = 1.0, color = null) {
     }
     
     // Always try to resume audio context if needed - key for Android
-    if (audioContext && audioContext.state !== 'running') {
-        audioContext.resume();
+    if (ctx && ctx.state !== 'running') {
+        ctx.resume();
     }
     
     // Play sound with volume based on position
@@ -632,10 +630,10 @@ async function initAudio() {
     
     try {
         // Create optimized audio context
-        audioContext = createOptimizedAudioContext();
+        ctx = createOptimizedctx();
         
         // Android-specific setup
-        setupAndroidAudio(audioContext);
+        setupAndroidAudio(ctx);
         
         const snareFiles = [
             'snare.mp3', 'snare1.mp3', 'snare2.mp3',
@@ -652,15 +650,15 @@ async function initAudio() {
         // Android-specific loading optimizations
         try {
             // Pre-create gain node that will be reused
-            cachedGainNode = audioContext.createGain();
+            cachedGainNode = ctx.createGain();
             cachedGainNode.gain.value = 1.0;
-            cachedGainNode.connect(audioContext.destination);
+            cachedGainNode.connect(ctx.destination);
             
             // Android optimization: Pre-create source nodes
             // Create just a few placeholder source nodes to help "warm up" the audio system
             for (let i = 0; i < 3; i++) {
-                const dummyBuffer = audioContext.createBuffer(1, 44100, 44100);
-                const source = audioContext.createBufferSource();
+                const dummyBuffer = ctx.createBuffer(1, 44100, 44100);
+                const source = ctx.createBufferSource();
                 source.buffer = dummyBuffer;
                 preCreatedSourceNodes.push(source);
             }
@@ -701,7 +699,7 @@ async function initAudio() {
                         } else {
                             console.error(`Failed to load ${url} after retries`);
                             // Return an empty buffer to prevent crashes
-                            resolve(audioContext.createBuffer(2, 44100, 44100));
+                            resolve(ctx.createBuffer(2, 44100, 44100));
                         }
                     };
                     
@@ -710,7 +708,7 @@ async function initAudio() {
             } catch (err) {
                 console.error(`Error loading audio file ${url}:`, err);
                 // Return an empty buffer as fallback
-                return audioContext.createBuffer(2, 44100, 44100);
+                return ctx.createBuffer(2, 44100, 44100);
             }
         };
 
@@ -980,18 +978,18 @@ function setupEventListeners() {
     document.addEventListener('visibilitychange', function() {
         if (document.hidden) {
             // Pause audio processing when app is in background
-            if (audioContext && audioContext.state === 'running') {
+            if (ctx && ctx.state === 'running') {
                 try {
-                    audioContext.suspend();
+                    ctx.suspend();
                 } catch (e) {
                     console.log('Could not suspend audio context:', e);
                 }
             }
         } else {
             // Resume audio when app is visible again
-            if (audioContext && audioContext.state === 'suspended') {
+            if (ctx && ctx.state === 'suspended') {
                 try {
-                    audioContext.resume();
+                    ctx.resume();
                 } catch (e) {
                     console.log('Could not resume audio context:', e);
                 }
