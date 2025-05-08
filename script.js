@@ -212,7 +212,8 @@ async function initAudio() {
     const bassFiles = ['bass.mp3','bass1.mp3','bass2.mp3','bass3.mp3','bass4.mp3','bass5.mp3'];
 
     // Decode first buffers synchronously
-    const decode = buffer => new Promise(res => audioContext.decodeAudioData(buffer, res, () => res(null)));
+  const decode = buffer => new Promise(res => ctx.decodeAudioData(buffer, res, () => res(null)));
+
     const loadArray = async urls => {
       const arr = [];
       for (let url of urls) {
