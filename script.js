@@ -11,38 +11,18 @@ const levelNav = document.getElementById('level-nav');
 const circles = document.querySelectorAll(".circle");
 const overlay = document.getElementById("overlay");
 
-// Pre-create a pool of source nodes with buffers already attached
-let snareSourcePool = [];
-let bassSourcePool = [];
-const POOL_SIZE = 10; // Number of pre-allocated sources per sound type
-// Initialize the source pools during audio setup
-function initSourcePools() {
-    // Clear existing pools
-    snareSourcePool = [];
-    bassSourcePool = [];
-    
+let gainNodePool = [];
+const POOL_SIZE = 10;
+
+function initAudioPool() {
+    gainNodePool = [];
     for (let i = 0; i < POOL_SIZE; i++) {
-        // Pre-create sources for each sound set
-        for (let setIdx = 0; setIdx < snareBuffers.length; setIdx++) {
-            if (snareBuffers[setIdx]) {
-                const source = audioContext.createBufferSource();
-                source.buffer = snareBuffers[setIdx];
-                source.connect(audioContext.destination);
-                source.poolIndex = setIdx;
-                snareSourcePool.push({ source, inUse: false });
-            }
-            
-            if (bassBuffers[setIdx]) {
-                const source = audioContext.createBufferSource();
-                source.buffer = bassBuffers[setIdx];
-                source.connect(audioContext.destination);
-                source.poolIndex = setIdx;
-                bassSourcePool.push({ source, inUse: false });
-            }
-        }
+        const gainNode = audioContext.createGain();
+        gainNode.gain.value = 1.0;
+        gainNode.connect(audioContext.destination);
+        gainNodePool.push({ gainNode, inUse: false });
     }
 }
-
 // Create audio context with optimized Android settings
 let audioContext;
 function createOptimizedAudioContext() {
@@ -253,41 +233,42 @@ function playSound(hand, volume = 1.0) {
     }
 
     try {
-        const sourcePool = hand === 'L' ? snareSourcePool : bassSourcePool;
-        const idx = Math.min(currentSoundSet - 1, sourcePool.length - 1);
-        
-        // Find a free source from the pool
-        let sourceWrapper = sourcePool.find(sw => !sw.inUse && sw.source.poolIndex === idx);
-        
-        // If no free source, create a new one
-        if (!sourceWrapper) {
-            const buffers = hand === 'L' ? snareBuffers : bassBuffers;
-            const buf = buffers[idx];
-            if (!buf) return;  // safety check
-            
-            const source = audioContext.createBufferSource();
-            source.buffer = buf;
-            source.connect(audioContext.destination);
-            source.poolIndex = idx;
-            
-            sourceWrapper = { source, inUse: false };
-            sourcePool.push(sourceWrapper);
+        const buffers = hand === 'L' ? snareBuffers : bassBuffers;
+        const idx = Math.min(currentSoundSet - 1, buffers.length - 1);
+        const buf = buffers[idx];
+
+        if (!buf) return;  // safety check
+
+        // Get a gain node from the pool or create a new one
+        let gainWrapper = gainNodePool.find(gw => !gw.inUse);
+        if (!gainWrapper) {
+            const gainNode = audioContext.createGain();
+            gainNode.connect(audioContext.destination);
+            gainWrapper = { gainNode, inUse: false };
+            gainNodePool.push(gainWrapper);
         }
         
-        // Mark as in use
-        sourceWrapper.inUse = true;
+        // Mark gain node as in use
+        gainWrapper.inUse = true;
+        gainWrapper.gainNode.gain.value = volume;
         
-        // Android optimization: schedule sound to start *immediately*
-        sourceWrapper.source.start(0);
+        // Create and configure source node - we can't reuse these after they're started
+        const source = audioContext.createBufferSource();
+        source.buffer = buf;
         
-        // Mark as free after sound completes
+        // Connect to the pooled gain node
+        source.connect(gainWrapper.gainNode);
+        
+        // Start immediately
+        source.start(0);
+        
+        // Release the gain node after sound completes
         setTimeout(() => {
-            sourceWrapper.inUse = false;
-        }, 500); // Allow time for sound to complete
+            gainWrapper.inUse = false;
+        }, 500);
         
     } catch (err) {
         console.error("Error playing sound:", err);
-        // Attempt recovery if audio fails
         if (audioContext.state !== 'running') {
             audioContext.resume();
         }
