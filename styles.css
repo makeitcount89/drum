@@ -1,182 +1,213 @@
 body {
-    font-family: Arial, sans-serif;
-    text-align: center;
-    margin: 0;
-    padding: 20px;
-    background-color: #f5f5f5;
+  font-family: Arial, sans-serif;
+  text-align: center;
+  margin: 0;
+  padding: 20px;
+  background-color: #f5f5f5;
 }
 
 header {
-    background-color: #333;
-    color: white;
-    padding: 15px;
-    border-radius: 10px;
-    margin-bottom: 30px;
+  background-color: #333;
+  color: white;
+  padding: 15px;
+  border-radius: 10px;
+  margin-bottom: 30px;
 }
 
-
 .level-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background-color: #555;
-    color: white;
-    border: none;
-    border-radius: 8px;
-    padding: 10px 15px;
-    margin: 0 10px;
-    cursor: pointer;
-    transition: all 0.3s;
-    position: relative;
-    min-width: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #555;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 15px;
+  margin: 0 0.25rem;
+  cursor: pointer;
+  transition: all 0.3s;
+  position: relative;
+  min-width: 80px;
+  flex: 0 0 20%;
+  box-sizing: border-box;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .level-btn:hover {
-    background-color: #777;
+  background-color: #777;
 }
 
 .level-btn.active {
-    background-color: #3a8cf7;
-    font-weight: bold;
+  background-color: #3a8cf7;
+  font-weight: bold;
 }
 
 .level-btn.completed {
-    background-color: #4CAF50;
+  background-color: #4CAF50;
 }
 
 .level-btn.locked {
-    background-color: #999;
-    cursor: not-allowed;
+  background-color: #999;
+  cursor: not-allowed;
 }
 
 .trophy {
-    width: 24px;
-    height: 24px;
-    margin-left: 8px;
+  width: 24px;
+  height: 24px;
+  margin-left: 8px;
 }
 
 #pad-container {
-    display: flex;
-    justify-content: center;
-    margin-bottom: 20px;
+  display: flex;
+  justify-content: center;
+  margin-bottom: 20px;
 }
 
 .circle {
-    width: 100px;
-    height: 100px;
-    border-radius: 50%;
-    margin: 0 20px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 24px;
-    cursor: pointer;
-    transition: background-color 0.2s;
-    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  margin: 0 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  cursor: pointer;
+  position: relative;
+  overflow: visible;
+  transition: background 0.15s ease-out, transform 0.15s ease-out;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.2);
 }
 
 .circle.flash {
-    background-color: yellow !important;
+  background-color: yellow !important;
+}
+
+.circle::after, .circle::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  border: 2px dashed rgba(255, 255, 255, 0.3);
+  pointer-events: none;
+  z-index: 10;
+}
+
+.circle::after {
+  width: 66%;
+  height: 66%;
+}
+
+.circle::before {
+  width: 33%;
+  height: 33%;
+}
+
+@media (max-width: 768px) {
+  .circle::after, .circle::before {
+    display: none;
+  }
 }
 
 .pattern {
-    font-size: 24px;
-    margin: 30px 0;
-    padding: 15px;
-    background-color: white;
-    border-radius: 10px;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-    display: inline-block;
+  font-size: 24px;
+  margin: 30px 0;
+  padding: 15px;
+  background-color: white;
+  border-radius: 10px;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+  display: inline-block;
 }
 
 .pattern span {
-    margin: 0 10px;
-    transition: font-size 0.3s, color 0.3s;
+  margin: 0 10px;
+  transition: font-size 0.3s, color 0.3s;
 }
 
 .pattern span.flash {
-    font-size: 48px;
-    color: #3a8cf7;
+  font-size: 48px;
+  color: #3a8cf7;
 }
 
 #feedback {
-    margin-top: 30px;
-    font-size: 24px;
-    font-weight: bold;
-    color: green;
-    height: 30px;
+  margin-top: 30px;
+  font-size: 24px;
+  font-weight: bold;
+  color: green;
+  height: 30px;
 }
 
 #bpm-display {
-    margin-top: 15px;
-    font-size: 18px;
-    font-weight: bold;
+  margin-top: 15px;
+  font-size: 18px;
+  font-weight: bold;
 }
 
 #level-display {
-    margin: 15px 0;
-    font-size: 20px;
-    font-weight: bold;
-    color: #333;
+  margin: 15px 0;
+  font-size: 20px;
+  font-weight: bold;
+  color: #333;
 }
 
-
-
 .achievement-display {
-    margin-top: 20px;
-    font-size: 22px;
-    font-weight: bold;
+  margin-top: 20px;
+  font-size: 22px;
+  font-weight: bold;
 }
 
 .achievement-gold {
-    color: goldenrod;
+  color: goldenrod;
 }
 
 .achievement-silver {
-    color: silver;
+  color: silver;
 }
 
 .achievement-bronze {
-    color: #cd7f32;
+  color: #cd7f32;
 }
 
 .achievement-icon {
-    font-size: 40px;
-    margin-top: 10px;
+  font-size: 40px;
+  margin-top: 10px;
 }
 
 .trophy-gold {
-    color: goldenrod;
+  color: goldenrod;
 }
 
 .trophy-silver {
-    color: silver;
+  color: silver;
 }
 
 .trophy-bronze {
-    color: #cd7f32;
+  color: #cd7f32;
 }
 
 .controls-info {
-    margin-top: 20px;
-    padding: 10px;
-    background-color: #e8f4ff;
-    border-radius: 8px;
-    font-size: 16px;
-    display: inline-block;
+  margin-top: 20px;
+  padding: 10px;
+  background-color: #e8f4ff;
+  border-radius: 8px;
+  font-size: 16px;
+  display: inline-block;
 }
 
 .key {
-    display: inline-block;
-    padding: 2px 8px;
-    margin: 0 3px;
-    background-color: #ddd;
-    border: 1px solid #999;
-    border-radius: 4px;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.2);
-    font-family: monospace;
+  display: inline-block;
+  padding: 2px 8px;
+  margin: 0 3px;
+  background-color: #ddd;
+  border: 1px solid #999;
+  border-radius: 4px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+  font-family: monospace;
 }
-/* styles.css */
 
 .level-notification {
   position: fixed;
@@ -194,10 +225,11 @@ header {
   pointer-events: none;
   z-index: 1000;
 }
+
 .level-notification.show {
   opacity: 1;
-  /* pointer-events still none so it never steals taps */
 }
+
 .level-nav-wrapper {
   display: flex;
   align-items: center;
@@ -207,17 +239,8 @@ header {
 
 .level-nav {
   display: flex;
-  flex: 1 1 auto;         /* fill the space between arrows */
+  flex: 1 1 auto;
   overflow: hidden;
-}
-
-.level-btn {
-  flex: 0 0 20%;          /* always 20% of the nav width = 5 buttons total */
-  box-sizing: border-box;
-  margin: 0 0.25rem;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .level-nav-arrow {
@@ -229,25 +252,65 @@ header {
   padding: 0.5rem;
   cursor: pointer;
 }
+
 .level-nav-arrow:disabled {
   opacity: 0.3;
   cursor: default;
 }
 
 .drum-circle {
-    position: relative;
-    overflow: hidden;
+  position: relative;
+  overflow: hidden;
 }
 
 .drum-overlay {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    border-radius: 50%;
-    pointer-events: none;
-    transition: background-color 0.1s ease;
-    background-color: rgba(0, 0, 0, 0);
-    z-index: 1;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  pointer-events: none;
+  transition: background-color 0.1s ease;
+  background-color: rgba(0, 0, 0, 0);
+  z-index: 1;
+}
+
+#overlay {
+  position: absolute;
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease-out;
+  z-index: 1000;
+  transform: translate(-50%, -50%);
+}
+
+@keyframes flash-animation {
+  0% {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+  100% {
+    opacity: 0.7;
+    transform: scale(1);
+  }
+}
+
+.flash {
+  animation: flash-animation 0.15s ease-out;
+}
+
+.hit-center {
+  box-shadow: 0 0 20px rgba(255, 0, 0, 0.7);
+}
+
+.hit-middle {
+  box-shadow: 0 0 15px rgba(255, 165, 0, 0.7);
+}
+
+.hit-edge {
+  box-shadow: 0 0 10px rgba(255, 255, 0, 0.7);
 }
