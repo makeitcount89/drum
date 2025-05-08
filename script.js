@@ -16,6 +16,7 @@ const overlay = document.getElementById("overlay");
 // Create audio context with optimized Android settings
 let audioContext;
 let hitWorkletNode;
+let contextOptions = { latencyHint: 'balanced', sampleRate: 8000 };
 let ctx = new (window.AudioContext || window.webkitAudioContext)(contextOptions);
 
 
