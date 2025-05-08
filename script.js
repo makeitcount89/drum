@@ -191,6 +191,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
+document.body.addEventListener('touchstart', () => {
+  if (!audioInitialized) initAudio();
+}, { once: true });
+
+
 function playSound(hand, volume = 1.0) {
   if (!audioInitialized) { initAudio(); return; }
   // Post message into the worklet with hand sample and dynamic volume
