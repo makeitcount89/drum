@@ -15,44 +15,24 @@ const overlay = document.getElementById("overlay");
 
 // Create audio context with optimized Android settings
 let audioContext;
-function createOptimizedAudioContext() {
-    // Android-specific optimizations:
-    // - Use lower buffer size for reduced latency
-    // - Set sample rate to match device capability
-    // - Use 'balanced' latencyHint for Android (better than 'interactive' on most Android devices)
-    
-    const contextOptions = {
-        latencyHint: 'balanced',
-        sampleRate: 8000
-    };
-    
-    // Create audio context with optimized settings
-    const ctx = new (window.AudioContext || window.webkitAudioContext)(contextOptions);
-    
-    // Android-specific: Check if we can use AudioWorklet for better performance
-    const hasAudioWorklet = typeof AudioWorkletNode === 'function';
-    
-    // Attempt to set smaller buffer size on Android if possible
-    if (ctx.audioWorklet && hasAudioWorklet) {
-        console.log('AudioWorklet API available for lower latency');
-    }
-    
-    // For older Android: Try to use older ScriptProcessor with small buffer
-    if (navigator.userAgent.toLowerCase().includes('android') && ctx.createScriptProcessor) {
-        // Create an unused processor with small buffer to influence the audio system
-        const bufferSize = 256; // Smallest safe value for most Android devices
-        const unusedProcessor = ctx.createScriptProcessor(bufferSize, 1, 1);
-        unusedProcessor.connect(ctx.destination); // This forces the audio system to use smaller buffers
-        
-        // Prevent audio crackling with empty process function
-        unusedProcessor.onaudioprocess = function() {};
-        
-        // Store reference to disconnect later
-        ctx._unusedProcessor = unusedProcessor;
-    }
-    
-    return ctx;
+let hitWorkletNode;
+
+async function createOptimizedAudioContext() {
+  // Android-specific optimizations
+  const contextOptions = { latencyHint: 'balanced', sampleRate: 8000 };
+  const ctx = new (window.AudioContext || window.webkitAudioContext)(contextOptions);
+
+  // Register our AudioWorklet processor for low-latency playback
+  if (ctx.audioWorklet && typeof AudioWorkletNode === 'function') {
+    await ctx.audioWorklet.addModule('hit-player-processor.js');
+    hitWorkletNode = new AudioWorkletNode(ctx, 'hit-player');
+    hitWorkletNode.connect(ctx.destination);
+    console.log('AudioWorkletNode registered for hit playback');
+  }
+
+  return ctx;
 }
+    
 
 // Audio buffers and sources with optimized caching
 let snareBuffers = [], bassBuffers = [];
@@ -212,54 +192,55 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function playSound(hand, volume = 1.0) {
-    if (!audioInitialized) {
-        initAudio();
-        return;
-    }
-    
-    // Android-specific optimization: ensure audio context is running
-    if (audioContext.state !== 'running') {
-        audioContext.resume();
-    }
+  if (!audioInitialized) { initAudio(); return; }
+  // Post message into the worklet with hand sample and dynamic volume
+  hitWorkletNode.port.postMessage({ hand, volume });
+}
 
-    try {
-        const buffers = hand === 'L' ? snareBuffers : bassBuffers;
-        const idx = Math.min(currentSoundSet - 1, buffers.length - 1);
-        const buf = buffers[idx];
+async function initAudio() {
+  if (audioInitialized) return;
+  try {
+    audioContext = await createOptimizedAudioContext();
 
-        if (!buf) return;  // safety check
+    // Load sample URLs
+    const snareFiles = ['snare.mp3','snare1.mp3','snare2.mp3','snare3.mp3','snare4.mp3','snare5.mp3'];
+    const bassFiles = ['bass.mp3','bass1.mp3','bass2.mp3','bass3.mp3','bass4.mp3','bass5.mp3'];
 
-        // Create and configure source node with optimized settings
-        const source = audioContext.createBufferSource();
-        source.buffer = buf;
-        
-        // Create a new gain node to control volume based on position
-        const gainNode = audioContext.createGain();
-        gainNode.gain.value = volume; // Set volume based on tap position
-        
-        // Connect source to gain node, then to destination
-        source.connect(gainNode);
-        gainNode.connect(audioContext.destination);
-        
-        // Android optimization: schedule sound to start *immediately*
-        source.start(0);
-        
-        // Store the source node for potential later cleanup
-        if (hand === 'L') {
-            snareSourceNodes.push({ source, startTime: audioContext.currentTime });
-        } else {
-            bassSourceNodes.push({ source, startTime: audioContext.currentTime });
-        }
-        
-        // Clean up old source nodes to prevent memory leaks
-        cleanupSourceNodes();
-    } catch (err) {
-        console.error("Error playing sound:", err);
-        // Attempt recovery if audio fails
-        if (audioContext.state !== 'running') {
-            audioContext.resume();
-        }
-    }
+    // Decode first buffers synchronously
+    const decode = buffer => new Promise(res => audioContext.decodeAudioData(buffer, res, () => res(null)));
+    const loadArray = async urls => {
+      const arr = [];
+      for (let url of urls) {
+        const resp = await fetch(url);
+        const buffer = await resp.arrayBuffer();
+        arr.push(await decode(buffer));
+      }
+      return arr;
+    };
+
+    feedback.textContent = "Loading basics...";
+    [snareBuffers, bassBuffers] = await Promise.all([loadArray([snareFiles[0]]), loadArray([bassFiles[0]])]);
+    audioInitialized = true;
+    feedback.textContent = "Basics loaded";
+
+    // Send buffers to the worklet for all samples
+    // Worklet will hold them internally
+    hitWorkletNode.port.postMessage({ init: true, snareBuffers, bassBuffers });
+
+    // Background load rest
+    (async () => {
+      snareBuffers = await loadArray(snareFiles);
+      bassBuffers = await loadArray(bassFiles);
+      soundsLoaded = true;
+      feedback.textContent = "All sounds loaded";
+      hitWorkletNode.port.postMessage({ update: true, snareBuffers, bassBuffers });
+      setTimeout(() => feedback.textContent = '', 1500);
+    })();
+
+  } catch (err) {
+    console.error('Audio init failed', err);
+    feedback.textContent = "Audio error, reload?";
+  }
 }
 
 
