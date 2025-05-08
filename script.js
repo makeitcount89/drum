@@ -211,60 +211,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-// Optimized sound playback with pre-buffering and Android-specific low latency
-function playSound(hand) {
-    if (!audioInitialized) {
-        initAudio();
-        return;
-    }
-    
-    // Android-specific optimization: ensure audio context is running
-    if (audioContext.state !== 'running') {
-        audioContext.resume();
-    }
-
-    try {
-        const buffers = hand === 'L' ? snareBuffers : bassBuffers;
-        const idx = Math.min(currentSoundSet - 1, buffers.length - 1);
-        const buf = buffers[idx];
-
-        if (!buf) return;  // safety check
-
-        // Create and configure source node with optimized settings
-        const source = audioContext.createBufferSource();
-        source.buffer = buf;
-        
-        // Android optimization: reuse gain node instead of creating new ones
-        if (!cachedGainNode) {
-            cachedGainNode = audioContext.createGain();
-            cachedGainNode.gain.value = 1.0;
-            cachedGainNode.connect(audioContext.destination);
-        }
-        
-        // Connect to the reused gain node for better performance
-        source.connect(cachedGainNode);
-        
-        // Android optimization: schedule sound to start *immediately*
-        // Using 0 instead of audioContext.currentTime can reduce latency on many devices
-        source.start(0);
-        
-        // Store the source node for potential later cleanup
-        if (hand === 'L') {
-            snareSourceNodes.push({ source, startTime: audioContext.currentTime });
-        } else {
-            bassSourceNodes.push({ source, startTime: audioContext.currentTime });
-        }
-        
-        // Clean up old source nodes to prevent memory leaks
-        cleanupSourceNodes();
-    } catch (err) {
-        console.error("Error playing sound:", err);
-        // Attempt recovery if audio fails
-        if (audioContext.state !== 'running') {
-            audioContext.resume();
-        }
-    }
-}
 
 // Clean up completed source nodes with optimized memory management
 function cleanupSourceNodes() {
@@ -560,77 +506,7 @@ function getAchievement(bpm) {
     return 'bronze'; // Minimum achievement is bronze
 }
 
-// Handle stroke input with Android optimizations for lower latency
-function handleStroke(hand) {
-    // First check if audio ready - on Android this is crucial
-    if (!audioInitialized) {
-        initAudio();
-        return;
-    }
-    
-    // Always try to resume audio context if needed - key for Android
-    if (audioContext && audioContext.state !== 'running') {
-        audioContext.resume();
-    }
-    
-    // Android optimization: Play sound FIRST before visual updates
-    // This helps reduce audio latency by prioritizing audio processing
-    playSound(hand);
 
-    // AFTER triggering audio, update visuals
-    const circle = hand === 'L' ? circleL : circleR;
-    flashCircle(circle);
-
-    // Start timing from first correct hit
-    if (currentPatternIndex === 0 && hand === currentPattern[0]) {
-        startTime = new Date();
-        bpmDisplay.textContent = "";
-    }
-
-    // Check if the clicked circle matches the pattern
-    if (currentPattern[currentPatternIndex] === hand) {
-        // Flash the current pattern position
-        flashCurrentPatternText();
-
-        // Move to next position in pattern
-        currentPatternIndex++;
-
-        // Check if pattern is complete
-        if (currentPatternIndex === currentPattern.length) {
-            feedback.textContent = "Well done!";
-            feedback.classList.add('success');
-            
-            setTimeout(() => {
-                advanceLevel();
-                feedback.textContent = "";
-                feedback.classList.remove('success');
-            }, 1000);
-        }
-    } else {
-        // Reset if the wrong circle is clicked
-        feedback.textContent = "Oops! Try again.";
-        feedback.classList.add('error');
-        currentPatternIndex = 0;
-        startTime = null;
-        
-        // Visual indication of mistake
-        pattern.classList.add('error-shake');
-
-        // Highlight the first stroke again
-        if (patternSpans.length > 0) {
-            for (let i = 0; i < patternSpans.length; i++) {
-                patternSpans[i].classList.remove('flash', 'next');
-            }
-            patternSpans[0].classList.add('next');
-        }
-
-        setTimeout(() => {
-            feedback.textContent = "";
-            feedback.classList.remove('error');
-            pattern.classList.remove('error-shake');
-        }, 1000);
-    }
-}
 
 // Initialize audio context and preload sounds with Android optimizations
 async function initAudio() {
@@ -778,79 +654,205 @@ async function initAudio() {
     }
 }
 
-// Android-specific audio setup
-function setupAndroidAudio(ctx) {
-    if (androidAudioSetup) return;
+// Modified playSound function with positional sensing
+function playSound(hand, volume = 1.0) {
+    if (!audioInitialized) {
+        initAudio();
+        return;
+    }
     
-    // Check if we're on Android
-    const isAndroid = /android/i.test(navigator.userAgent);
-    
-    if (isAndroid) {
-        console.log('Android-specific audio optimizations applied');
+    // Android-specific optimization: ensure audio context is running
+    if (audioContext.state !== 'running') {
+        audioContext.resume();
+    }
+
+    try {
+        const buffers = hand === 'L' ? snareBuffers : bassBuffers;
+        const idx = Math.min(currentSoundSet - 1, buffers.length - 1);
+        const buf = buffers[idx];
+
+        if (!buf) return;  // safety check
+
+        // Create and configure source node with optimized settings
+        const source = audioContext.createBufferSource();
+        source.buffer = buf;
         
-        // Create and connect a silent oscillator to keep audio context active
-        // This helps reduce latency on Android devices
-        try {
-            const silentOsc = ctx.createOscillator();
-            silentOsc.frequency.value = 0;
-            silentOsc.connect(ctx.destination);
-            silentOsc.start();
-            // Don't stop it - we want it to keep the audio context hot
-            
-            // Set up a periodic ping to keep the audio system awake
-            setInterval(() => {
-                if (ctx.state === 'running') {
-                    // Create very short, silent buffer and play it
-                    const silentBuffer = ctx.createBuffer(1, 1, 44100);
-                    const source = ctx.createBufferSource();
-                    source.buffer = silentBuffer;
-                    source.connect(ctx.destination);
-                    source.start();
-                }
-            }, 3000); // Every 3 seconds
-        } catch (e) {
-            console.log('Silent oscillator setup failed:', e);
+        // Create a new gain node for volume control based on position
+        const gainNode = audioContext.createGain();
+        gainNode.gain.value = volume; // Use the volume parameter from positional sensing
+        
+        // Connect source to gain node, then to destination
+        source.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        
+        // Android optimization: schedule sound to start *immediately*
+        source.start(0);
+        
+        // Store the source node for potential later cleanup
+        if (hand === 'L') {
+            snareSourceNodes.push({ source, startTime: audioContext.currentTime });
+        } else {
+            bassSourceNodes.push({ source, startTime: audioContext.currentTime });
+        }
+        
+        // Clean up old source nodes to prevent memory leaks
+        cleanupSourceNodes();
+    } catch (err) {
+        console.error("Error playing sound:", err);
+        // Attempt recovery if audio fails
+        if (audioContext.state !== 'running') {
+            audioContext.resume();
         }
     }
-    
-    androidAudioSetup = true;
 }
 
-// Prevent zooming on double tap for mobile devices
-// Optimized for Android touch handling
-function preventZoom(e) {
-    const now = Date.now();
-    const timeSince = now - lastTouchEnd;
-    
-    if (timeSince < 500) {
-        // Use preventDefault and stopPropagation on Android
-        e.preventDefault();
-        e.stopPropagation();
+// Modified handleStroke function to work with positional sensing
+function handleStroke(hand, volume = 1.0) {
+    // First check if audio ready - on Android this is crucial
+    if (!audioInitialized) {
+        initAudio();
+        return;
     }
     
-    lastTouchEnd = now;
-}// Setup event listeners for drum pad interaction
+    // Always try to resume audio context if needed - key for Android
+    if (audioContext && audioContext.state !== 'running') {
+        audioContext.resume();
+    }
+    
+    // Android optimization: Play sound FIRST before visual updates
+    // Now with volume parameter from positional sensing
+    playSound(hand, volume);
+
+    // AFTER triggering audio, update visuals
+    const circle = hand === 'L' ? circleL : circleR;
+    flashCircle(circle);
+
+    // Start timing from first correct hit
+    if (currentPatternIndex === 0 && hand === currentPattern[0]) {
+        startTime = new Date();
+        bpmDisplay.textContent = "";
+    }
+
+    // Check if the clicked circle matches the pattern
+    if (currentPattern[currentPatternIndex] === hand) {
+        // Flash the current pattern position
+        flashCurrentPatternText();
+
+        // Move to next position in pattern
+        currentPatternIndex++;
+
+        // Check if pattern is complete
+        if (currentPatternIndex === currentPattern.length) {
+            feedback.textContent = "Well done!";
+            feedback.classList.add('success');
+            
+            setTimeout(() => {
+                advanceLevel();
+                feedback.textContent = "";
+                feedback.classList.remove('success');
+            }, 1000);
+        }
+    } else {
+        // Reset if the wrong circle is clicked
+        feedback.textContent = "Oops! Try again.";
+        feedback.classList.add('error');
+        currentPatternIndex = 0;
+        startTime = null;
+        
+        // Visual indication of mistake
+        pattern.classList.add('error-shake');
+
+        // Highlight the first stroke again
+        if (patternSpans.length > 0) {
+            for (let i = 0; i < patternSpans.length; i++) {
+                patternSpans[i].classList.remove('flash', 'next');
+            }
+            patternSpans[0].classList.add('next');
+        }
+
+        setTimeout(() => {
+            feedback.textContent = "";
+            feedback.classList.remove('error');
+            pattern.classList.remove('error-shake');
+        }, 1000);
+    }
+}
+
+// Modified setupEventListeners function to integrate positional sensing
 function setupEventListeners() {
     // Touch events for mobile with Android-specific optimizations
+    // and positional sensing
+    
+    // Add a function to calculate the volume based on touch position
+    function calculateVolume(element, touchEvent) {
+        const touch = touchEvent.touches[0];
+        const rect = element.getBoundingClientRect();
+        const centerX = rect.left + rect.width / 2;
+        const centerY = rect.top + rect.height / 2;
+        const dx = touch.clientX - centerX;
+        const dy = touch.clientY - centerY;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        const radius = rect.width / 2;
+        const normDist = distance / radius;
+
+        let volume = 0;
+        let color = '';
+
+        if (normDist <= 0.25) {
+            volume = 1.0;
+            color = 'rgba(255, 0, 0, 0.6)'; // Red - center hit
+        } else if (normDist <= 0.5) {
+            volume = 0.8;
+            color = 'rgba(255, 165, 0, 0.6)'; // Orange
+        } else if (normDist <= 0.75) {
+            volume = 0.6;
+            color = 'rgba(255, 255, 0, 0.6)'; // Yellow
+        } else if (normDist <= 1.0) {
+            volume = 0.4;
+            color = 'rgba(144, 238, 144, 0.6)'; // Light green
+        } else {
+            volume = 0.2;
+            color = 'rgba(0, 0, 0, 0)';
+        }
+
+        // Show visual feedback with overlay
+        overlay.style.backgroundColor = color;
+        
+        return volume;
+    }
+
+    // Right circle touch with positional sensing
     circleR.addEventListener('touchstart', function(e) {
         e.preventDefault(); // Prevent default to avoid delays on Android
-        handleStroke('R');
+        const volume = calculateVolume(this, e);
+        handleStroke('R', volume);
         touchStartTime = Date.now();
     }, { passive: false });
 
+    // Left circle touch with positional sensing
     circleL.addEventListener('touchstart', function(e) {
         e.preventDefault(); // Prevent default to avoid delays on Android
-        handleStroke('L');
+        const volume = calculateVolume(this, e);
+        handleStroke('L', volume);
         touchStartTime = Date.now();
     }, { passive: false });
 
-    // Mouse events for desktop
-    circleR.addEventListener('mousedown', function() {
-        handleStroke('R');
+    // Reset overlay visual on touch end
+    circles.forEach(circle => {
+        circle.addEventListener("touchend", () => {
+            overlay.style.backgroundColor = 'rgba(0, 0, 0, 0)'; // Reset
+        });
     });
 
-    circleL.addEventListener('mousedown', function() {
-        handleStroke('L');
+    // Mouse events for desktop
+    circleR.addEventListener('mousedown', function(e) {
+        // For mouse we'll just use center volume (1.0) or 
+        // we could also calculate position for mouse
+        handleStroke('R', 1.0);
+    });
+
+    circleL.addEventListener('mousedown', function(e) {
+        handleStroke('L', 1.0);
     });
 
     // Keyboard events for accessibility
@@ -860,10 +862,10 @@ function setupEventListeners() {
             document.activeElement.tagName !== 'TEXTAREA') {
             
             if (e.key === 'd' || e.key === 'D') {
-                handleStroke('R');
+                handleStroke('R', 1.0);
                 flashCircle(circleR);
             } else if (e.key === 'a' || e.key === 'A') {
-                handleStroke('L');
+                handleStroke('L', 1.0);
                 flashCircle(circleL);
             }
         }
@@ -926,6 +928,9 @@ function setupEventListeners() {
         });
     }
 }
+
+// Remove the duplicate position sensing code at the bottom of the file
+// since we've now integrated it into our main event listeners
 
 // Initialize app with optimized startup sequence
 function initApp() {
