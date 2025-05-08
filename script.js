@@ -1198,55 +1198,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 
 
-document.addEventListener('DOMContentLoaded', () => {
-  circles.forEach(circle => {
-  circle.addEventListener("touchstart", function (e) {
-    const touch = e.touches[0];
-    const rect = this.getBoundingClientRect();
-    const centerX = rect.left + rect.width / 2;
-    const centerY = rect.top + rect.height / 2;
-    const dx = touch.clientX - centerX;
-    const dy = touch.clientY - centerY;
-    const distance = Math.sqrt(dx * dx + dy * dy);
-    const radius = rect.width / 2;
-    const normDist = distance / radius;
 
-    let volume = 0;
-    let color = '';
-
-    if (normDist <= 0.25) {
-      volume = 1.0;
-      color = 'rgba(255, 0, 0, 0.6)'; // Red
-    } else if (normDist <= 0.75) {
-      volume = 0.66;
-      color = 'rgba(255, 165, 0, 0.6)'; // Orange
-    } else if (normDist <= 1.0) {
-      volume = 0.33;
-      color = 'rgba(255, 255, 0, 0.6)'; // Yellow
-    } else {
-      volume = 0;
-      color = 'rgba(0, 0, 0, 0)';
-    }
-
-    overlay.style.backgroundColor = color;
-
-    if (soundBuffer && volume > 0) {
-      const source = audioContext.createBufferSource();
-      source.buffer = soundBuffer;
-
-      const gainNode = audioContext.createGain();
-      gainNode.gain.setValueAtTime(volume, audioContext.currentTime);
-
-      source.connect(gainNode).connect(audioContext.destination);
-      source.start(0);
-    }
-  });
-
-  circle.addEventListener("touchend", () => {
-    overlay.style.backgroundColor = 'rgba(0, 0, 0, 0)'; // Reset
-  });
-});
-});
 // Handle online/offline events
 window.addEventListener('online', function() {
     console.log('App is online');
