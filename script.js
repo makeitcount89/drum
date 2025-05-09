@@ -868,11 +868,11 @@ function setupEventListeners() {
             color = 'radial-gradient(circle, rgba(255,0,0,0.7) 0%, rgba(255,0,0,0) 70%)';
         } else if (normDist <= 0.66) {
             // Mid area - medium volume
-            volume = 0.7;
+            volume = 0.5;
             color = 'radial-gradient(circle, rgba(255,165,0,0.7) 0%, rgba(255,165,0,0) 70%)';
         } else if (normDist <= 1.0) {
             // Edge hit - low volume
-            volume = 0.4;
+            volume = 0.25;
             color = 'radial-gradient(circle, rgba(255,255,0,0.7) 0%, rgba(255,255,0,0) 70%)';
         } else {
             // Outside drum - very low volume (shouldn't happen with proper hit detection)
