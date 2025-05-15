@@ -599,6 +599,7 @@ function handleStroke(hand, volume = 0, color = null) {
     }
 }
 
+window.handleStroke = handleStroke;
 // Setup event listeners for drum pad interaction
 
 function setupNetworkMonitoring() {
