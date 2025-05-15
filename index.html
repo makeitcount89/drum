@@ -6,18 +6,6 @@
     <title>Drum Practice Pad</title>
     <!-- Stylesheets -->
     <link rel="stylesheet" href="styles.css">
-    <!-- Audio Files -->
-    <audio id="snare-sound" src="snare.mp3" preload="auto"></audio>
-	<audio id="maracas-sound" src="maracas.mp3" preload="auto"></audio>
-    <audio id="bass-sound" src="bass.mp3" preload="auto"></audio>
-    <audio id="snare2-sound" src="snare2.mp3" preload="auto"></audio>
-    <audio id="bass2-sound" src="bass2.mp3" preload="auto"></audio>
-    <audio id="snare3-sound" src="snare3.mp3" preload="auto"></audio>
-    <audio id="bass3-sound" src="bass3.mp3" preload="auto"></audio>
-    <audio id="snare4-sound" src="snare4.mp3" preload="auto"></audio>
-    <audio id="bass4-sound" src="bass4.mp3" preload="auto"></audio>
-    <audio id="snare5-sound" src="snare5.mp3" preload="auto"></audio>
-    <audio id="bass5-sound" src="bass5.mp3" preload="auto"></audio>
     <style>
       .info-box {
         background-color: rgba(0,0,0,0.6);
@@ -199,9 +187,61 @@
       .feedback-active {
         opacity: 1;
       }
+
+      /* Loading indicator */
+      .loading-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.7);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 1000;
+        color: white;
+        font-size: 1.5rem;
+      }
+
+      .loading-spinner {
+        width: 50px;
+        height: 50px;
+        border: 5px solid #f3f3f3;
+        border-top: 5px solid #3498db;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin-right: 15px;
+      }
+
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+
+      /* Visual feedback for drum hit */
+      .drum-circle.hit {
+        animation: pulse 0.3s ease;
+      }
+
+      @keyframes pulse {
+        0% { transform: scale(1); }
+        50% { transform: scale(1.1); box-shadow: 0 0 15px rgba(255, 255, 255, 0.8); }
+        100% { transform: scale(1); }
+      }
+
+      .audio-status-ready {
+        color: #4CAF50 !important;
+        font-weight: bold;
+      }
     </style>
 </head>
 <body>
+    <div id="loading" class="loading-overlay">
+        <div class="loading-spinner"></div>
+        <div>Loading Audio Samples...</div>
+    </div>
+
     <header>
         <h1>Drum Rudiment Practice</h1>
         <div class="level-nav-wrapper">
@@ -215,23 +255,23 @@
     <div class="workspace">
         <!-- Left Basket -->
         <div class="basket basket-left" id="left-basket">
-            <div class="drum-circle basket-item" draggable="true" data-sound="snare-sound" data-level="1" data-side="left" data-hand="L">
+            <div class="drum-circle basket-item" draggable="true" data-sound="snare" data-level="1" data-side="left" data-hand="L">
                 <img src="snareimg.jpg" alt="Snare" style="width: 100%; height: 100%;">
                 <div class="overlay"></div>
             </div>
-            <div class="drum-circle basket-item" draggable="true" data-sound="snare2-sound" data-level="1" data-side="left" data-hand="L">
+            <div class="drum-circle basket-item" draggable="true" data-sound="snare2" data-level="1" data-side="left" data-hand="L">
                 <img src="snareimg.jpg" alt="Snare 2" style="width: 100%; height: 100%;">
                 <div class="overlay"></div>
             </div>
-            <div class="drum-circle basket-item" draggable="true" data-sound="snare3-sound" data-level="2" data-side="left" data-hand="L">
+            <div class="drum-circle basket-item" draggable="true" data-sound="snare3" data-level="2" data-side="left" data-hand="L">
                 <img src="snareimg.jpg" alt="Snare 3" style="width: 100%; height: 100%;">
                 <div class="overlay"></div>
             </div>
-            <div class="drum-circle basket-item" draggable="true" data-sound="snare4-sound" data-level="3" data-side="left" data-hand="L">
+            <div class="drum-circle basket-item" draggable="true" data-sound="snare4" data-level="3" data-side="left" data-hand="L">
                 <img src="snareimg.jpg" alt="Snare 4" style="width: 100%; height: 100%;">
                 <div class="overlay"></div>
             </div>
-            <div class="drum-circle basket-item" draggable="true" data-sound="snare5-sound" data-level="3" data-side="left" data-hand="L">
+            <div class="drum-circle basket-item" draggable="true" data-sound="snare5" data-level="3" data-side="left" data-hand="L">
                 <img src="snareimg.jpg" alt="Snare 5" style="width: 100%; height: 100%;">
                 <div class="overlay"></div>
             </div>
@@ -243,16 +283,6 @@
                 <div class="dividing-line"></div>
                 <div class="feedback-indicator feedback-l">L</div>
                 <div class="feedback-indicator feedback-r">R</div>
-                <!-- <div id="pad-container"> 
-                   <div id="circleL" class="circle">
-                        <img src="snareimg.jpg" alt="Snare" style="width: 80px; height: 80px;">
-                        <div class="overlay"></div>
-                    </div>
-                    <div id="circleR" class="circle">
-                        <img src="bassimg.jpg" alt="Bass" style="width: 80px; height: 80px;">
-                        <div class="overlay"></div>
-                    </div>
-                </div> -->
                 <div id="overlay"></div>
                 <div class="pattern" id="pattern"></div>
                 <div id="feedback"></div>
@@ -264,24 +294,24 @@
         
         <!-- Right Basket -->
         <div class="basket basket-right" id="right-basket">
-            <div class="drum-circle basket-item" draggable="true" data-sound="maracas-sound" data-level="2" data-side="right" data-hand="L">
-                <img src="maracas.jpg" alt="Bass" style="width: 100%; height: 100%;">
+            <div class="drum-circle basket-item" draggable="true" data-sound="maracas" data-level="2" data-side="right" data-hand="L">
+                <img src="maracas.jpg" alt="Maracas" style="width: 100%; height: 100%;">
                 <div class="overlay"></div>
             </div>
-            <div class="drum-circle basket-item" draggable="true" data-sound="bass2-sound" data-level="1" data-side="right" data-hand="R">
+            <div class="drum-circle basket-item" draggable="true" data-sound="bass" data-level="1" data-side="right" data-hand="R">
+                <img src="bassimg.jpg" alt="Bass" style="width: 100%; height: 100%;">
+                <div class="overlay"></div>
+            </div>
+            <div class="drum-circle basket-item" draggable="true" data-sound="bass2" data-level="2" data-side="right" data-hand="R">
                 <img src="bassimg.jpg" alt="Bass 2" style="width: 100%; height: 100%;">
                 <div class="overlay"></div>
             </div>
-            <div class="drum-circle basket-item" draggable="true" data-sound="bass3-sound" data-level="2" data-side="right" data-hand="R">
+            <div class="drum-circle basket-item" draggable="true" data-sound="bass3" data-level="3" data-side="right" data-hand="R">
                 <img src="bassimg.jpg" alt="Bass 3" style="width: 100%; height: 100%;">
                 <div class="overlay"></div>
             </div>
-            <div class="drum-circle basket-item" draggable="true" data-sound="bass4-sound" data-level="3" data-side="right" data-hand="R">
+            <div class="drum-circle basket-item" draggable="true" data-sound="bass4" data-level="3" data-side="right" data-hand="R">
                 <img src="bassimg.jpg" alt="Bass 4" style="width: 100%; height: 100%;">
-                <div class="overlay"></div>
-            </div>
-            <div class="drum-circle basket-item" draggable="true" data-sound="bass5-sound" data-level="3" data-side="right" data-hand="R">
-                <img src="bassimg.jpg" alt="Bass 5" style="width: 100%; height: 100%;">
                 <div class="overlay"></div>
             </div>
         </div>
@@ -291,297 +321,444 @@
         <p>Controls: Click pads or use keyboard - <span class="key">←</span> for Left hand (Snare), <span class="key">→</span> for Right hand (Bass)</p>
         <div id="audio-status" style="margin-top: 10px; color: #777;">Click anywhere or press a key to enable audio</div>
     </div>
-    
-
-    <!-- JavaScript -->
-    <script src="script.js"></script>
 	
-<script>
-document.addEventListener('DOMContentLoaded', function () {
-    const drumContainer = document.getElementById('drum-container');
-    const basketItems = document.querySelectorAll('.basket-item');
-    const leftBasket = document.getElementById('left-basket');
-    const rightBasket = document.getElementById('right-basket');
-    const feedbackL = document.querySelector('.feedback-l');
-    const feedbackR = document.querySelector('.feedback-r');
-
-    // Default effects object
-const effects = {
-    volume: 0,      // will be set dynamically
-    color: ''       // will be set dynamically
-};
-
-
-    let activeItem = null;
-    let offsetX = 0;
-    let offsetY = 0;
-
-    basketItems.forEach(item => {
-        item.addEventListener('dragstart', handleDragStart);
-        item.addEventListener('mousedown', handleMouseDown);
-    });
-
-    [leftBasket, rightBasket, drumContainer].forEach(element => {
-        element.addEventListener('dragover', handleDragOver);
-        element.addEventListener('drop', handleDrop);
-        element.addEventListener('dragenter', function (e) {
-            e.preventDefault();
-            this.classList.add('drag-hover');
-        });
-        element.addEventListener('dragleave', function (e) {
-            e.preventDefault();
-            this.classList.remove('drag-hover');
-        });
-    });
-
-    function handleDragStart(e) {
-        this.classList.add('dragging');
-        e.dataTransfer.setData('text/plain', this.dataset.sound);
-        e.dataTransfer.setData('side', this.dataset.side);
-        e.dataTransfer.setData('hand', this.dataset.hand);
-        e.dataTransfer.setData('source', this.parentElement.id);
-        const rect = this.getBoundingClientRect();
-        offsetX = e.clientX - rect.left;
-        offsetY = e.clientY - rect.top;
-        activeItem = this;
-    }
-
-    function handleMouseDown(e) {}
-
-    function handleDragOver(e) {
-        e.preventDefault();
-        return false;
-    }
-
-    function handleDrop(e) {
-        e.preventDefault();
-        if (!activeItem) return;
-
-        const soundId = e.dataTransfer.getData('text/plain');
-        const sourceId = e.dataTransfer.getData('source');
-
-        activeItem.classList.remove('dragging');
-        document.querySelectorAll('.drag-hover').forEach(el => el.classList.remove('drag-hover'));
-
-        if (e.currentTarget === drumContainer) {
-            let newItem;
-            if (activeItem.parentElement === leftBasket || activeItem.parentElement === rightBasket) {
-                newItem = activeItem.cloneNode(true);
-                newItem.classList.add('on-canvas');
-                newItem.addEventListener('mousedown', handleCanvasItemMouseDown);
-                newItem.addEventListener('click', handleDrumClick);
-                newItem.setAttribute('draggable', true);
-                drumContainer.appendChild(newItem);
-            } else if (activeItem.classList.contains('on-canvas')) {
-                newItem = activeItem;
-            }
-
-            const rect = drumContainer.getBoundingClientRect();
-            newItem.style.left = (e.clientX - rect.left - offsetX) + 'px';
-            newItem.style.top = (e.clientY - rect.top - offsetY) + 'px';
-            makeItemDraggableOnCanvas(newItem);
-        } else if (e.currentTarget === leftBasket || e.currentTarget === rightBasket) {
-            if (activeItem.classList.contains('on-canvas')) {
-                activeItem.remove();
-            } else if (sourceId && sourceId !== e.currentTarget.id) {
-                activeItem.remove();
-                const newBasketItem = document.createElement('div');
-                newBasketItem.className = 'drum-circle basket-item';
-                newBasketItem.setAttribute('draggable', 'true');
-                newBasketItem.dataset.sound = soundId;
-                newBasketItem.dataset.side = e.currentTarget === leftBasket ? 'left' : 'right';
-                newBasketItem.dataset.hand = e.currentTarget === leftBasket ? 'L' : 'R';
-
-                const img = document.createElement('img');
-                img.src = e.currentTarget === leftBasket ? 'snareimg.jpg' : 'bassimg.jpg';
-                img.alt = e.currentTarget === leftBasket ? 'Snare' : 'Bass';
-                img.style.width = '100%';
-                img.style.height = '100%';
-
-                const overlay = document.createElement('div');
-                overlay.className = 'overlay';
-
-                newBasketItem.appendChild(img);
-                newBasketItem.appendChild(overlay);
-                newBasketItem.addEventListener('dragstart', handleDragStart);
-                newBasketItem.addEventListener('mousedown', handleMouseDown);
-
-                e.currentTarget.appendChild(newBasketItem);
-            }
-        }
-
-        activeItem = null;
-        return false;
-    }
-function makeItemDraggableOnCanvas(item) {
-    let isDragging = false;
-    let startX, startY;
-
-    item.addEventListener('mousedown', function (e) {
-        isDragging = true;
-        startX = e.clientX - parseInt(item.style.left);
-        startY = e.clientY - parseInt(item.style.top);
-        
-        // Play sound when the drag starts
-        const rect = drumContainer.getBoundingClientRect();
-        const itemX = parseInt(item.style.left) + (item.offsetWidth / 2);
-        const itemY = parseInt(item.style.top) + (item.offsetHeight / 2);
-        const volume = 1 - (itemY / rect.height); // Volume based on vertical position
-
-        
-
-        e.preventDefault();
-        e.stopPropagation();
-    });
-
-    document.addEventListener('mousemove', function (e) {
-        if (!isDragging) return;
-        const rect = drumContainer.getBoundingClientRect();
-        const left = e.clientX - startX;
-        const top = e.clientY - startY;
-
-        const maxLeft = rect.width - item.offsetWidth;
-        const maxTop = rect.height - item.offsetHeight;
-
-        item.style.left = Math.max(0, Math.min(left, maxLeft)) + 'px';
-        item.style.top = Math.max(0, Math.min(top, maxTop)) + 'px';
-    });
-
-    document.addEventListener('mouseup', function () {
-        isDragging = false;
-    });
-}
-function handleCanvasItemMouseDown(e) {
-    const item = e.target.closest('.drum-circle');
-    if (!item) return;
-
-    activeItem = item;
-
-    const rect = item.getBoundingClientRect();
-    offsetX = e.clientX - rect.left;
-    offsetY = e.clientY - rect.top;
-    item.setAttribute('draggable', true);
-
-    item.addEventListener('dragstart', function (event) {
-        event.dataTransfer.setData('text/plain', item.dataset.sound);
-        event.dataTransfer.setData('side', item.dataset.side);
-        event.dataTransfer.setData('hand', item.dataset.hand);
-        event.dataTransfer.setData('source', 'drum-container');
-        item.classList.add('dragging');
-
-        // Play sound when dragging starts (add logic for dynamic volume)
-        const volume = 1 - (offsetY / rect.height); // Volume based on Y offset during drag
-        const hand = item.dataset.side === 'left' ? 'L' : 'R';
-
-       
-    }, { once: true });
-
-    e.stopPropagation();
-}
-function handleDrumClick(e) {
-    const item = e.target.closest('.drum-circle');
-    if (!item || item.classList.contains('dragging')) return;
-
-    // Get the drum's position relative to the page
-    const drumRect = item.getBoundingClientRect();
-    const drumCenterX = drumRect.left + (drumRect.width / 2);
+	<!-- JavaScript -->
+    <script src="script.js"></script>
     
-    // Get the page width
-    const pageWidth = window.innerWidth;
+    <script>
+    // Global audio context
+    //let audioContext;
+    let audioBuffers = {};
+    //let currentLevel = 1;
+    //let audioInitialized = false;
     
-    // Determine if the drum is on the left side of the page
-    const isLeft = drumCenterX < (pageWidth / 2);
-    
-    const clientX = e.clientX;
-    const clientY = e.clientY;
-    
-    // Use the calculatePositionEffects function to determine volume and color
-    const { volume, color } = calculatePositionEffects(item, clientX, clientY);
-
-    // Get the audio element based on data from the item
-    const audio = document.getElementById(item.dataset.sound);
-    if (audio) {
-        audio.volume = Math.max(0, Math.min(1, volume));
-        audio.currentTime = 0;
-        audio.play();
-    }
-
-    // Handle visual feedback based on which side of the page the drum is on
-    if (isLeft) {
-        showFeedback(feedbackL);
-    } else {
-        showFeedback(feedbackR);
-    }
-
-    // Handle stroke and color effects
-    handleStroke(isLeft ? 'L' : 'R', volume, color);
-    e.stopPropagation();
-}
-
-    function triggerPatternWithHand(hand) {
-        handleStroke(hand, effects.volume, effects.color);
-
-        const target = hand === 'L' ? document.getElementById('circleL') : document.getElementById('circleR');
-        if (target) {
-            const clickEvent = new MouseEvent('click', {
-                bubbles: true,
-                cancelable: true,
-                view: window
-            });
-            target.dispatchEvent(clickEvent);
-        }
-    }
-
-    function showFeedback(element) {
-        element.classList.add('feedback-active');
-        setTimeout(() => {
-            element.classList.remove('feedback-active');
-        }, 300);
-    }
-
-    window.handleStroke = window.handleStroke || function(hand, volume, color) {
-        console.log(`Stroke: Hand=${hand}, Volume=${volume.toFixed(2)}, Color=${color}`);
+    // Define audio sample URLs
+    const audioSamples = {
+        "snare": "snare.mp3",
+        "snare2": "snare2.mp3",
+        "snare3": "snare3.mp3",
+        "snare4": "snare4.mp3",
+        "snare5": "snare5.mp3",
+        "maracas": "maracas.mp3",
+        "bass": "bass.mp3",
+        "bass2": "bass2.mp3",
+        "bass3": "bass3.mp3",
+        "bass4": "bass4.mp3",
+        "bass5": "bass5.mp3"
     };
-
-    document.querySelectorAll('.basket-item').forEach(item => {
-        item.addEventListener('dragstart', handleDragStart);
-        item.addEventListener('mousedown', handleMouseDown);
-    });
-
-   
-});
-
-  //let currentLevel = 1;
-
-  function updateVisibleDrums(level) {
-    currentLevel = level;
-
-    document.querySelectorAll('.basket-item').forEach(item => {
-      const itemLevel = parseInt(item.getAttribute('data-level'), 10);
-      item.style.display = itemLevel <= currentLevel ? 'flex' : 'none';
-    });
-
-    const levelDisplay = document.getElementById('level-display');
-    if (levelDisplay) {
-      levelDisplay.textContent = `Level ${level}`;
+    
+    // Default effects object
+    const effects = {
+        volume: 0.8,      // Default volume
+        color: 'white'    // Default color
+    };
+    
+    // Initialize Web Audio API
+    async function initAudio() {
+        if (audioInitialized) return Promise.resolve();
+        
+        try {
+            // Create audio context
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            
+            // Load all samples
+            const loadPromises = Object.entries(audioSamples).map(([id, url]) => {
+                return loadSample(url).then(buffer => {
+                    audioBuffers[id] = buffer;
+                });
+            });
+            
+            await Promise.all(loadPromises);
+            audioInitialized = true;
+            
+            document.getElementById('audio-status').textContent = 'Audio Ready!';
+            document.getElementById('audio-status').classList.add('audio-status-ready');
+            document.getElementById('loading').style.display = 'none';
+            
+            return Promise.resolve();
+        } catch (error) {
+            console.error('Error initializing audio:', error);
+            document.getElementById('audio-status').textContent = 'Error loading audio. Please refresh the page.';
+            document.getElementById('loading').style.display = 'none';
+            return Promise.reject(error);
+        }
     }
-  }
-
-  // Add listeners to navigation buttons
-  document.getElementById('prev-levels').addEventListener('click', () => {
-    if (currentLevel > 1) updateVisibleDrums(currentLevel - 1);
-  });
-
-  document.getElementById('next-levels').addEventListener('click', () => {
-    updateVisibleDrums(currentLevel + 1);
-  });
-
-  // Initial visibility
-  window.addEventListener('DOMContentLoaded', () => {
-    updateVisibleDrums(currentLevel);
-  });
-</script>
-
-
+    
+    // Load audio sample
+    function loadSample(url) {
+        return fetch(url)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`Failed to load sample: ${url}`);
+                }
+                return response.arrayBuffer();
+            })
+            .then(data => audioContext.decodeAudioData(data));
+    }
+    
+    // Play a sound with the Web Audio API
+    function playSound(soundId, volume = 1.0) {
+        if (!audioInitialized) return;
+        
+        const buffer = audioBuffers[soundId];
+        if (!buffer) {
+            console.warn(`Sound ${soundId} not found in loaded buffers`);
+            return;
+        }
+        
+        // Create audio source
+        const source = audioContext.createBufferSource();
+        source.buffer = buffer;
+        
+        // Create gain node for volume control
+        const gainNode = audioContext.createGain();
+        gainNode.gain.value = Math.max(0, Math.min(1, volume));
+        
+        // Connect nodes
+        source.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        
+        // Play sound
+        source.start(0);
+        
+        return source;
+    }
+    
+    // Calculate position effects (volume and color based on position)
+    function calculatePositionEffects(element, x, y) {
+        const rect = element.getBoundingClientRect();
+        const containerRect = document.getElementById('drum-container').getBoundingClientRect();
+        
+        // Calculate normalized vertical position (0 at top, 1 at bottom)
+        const normalizedY = (y - containerRect.top) / containerRect.height;
+        
+        // Volume decreases as you move down
+        const volume = 1 - Math.min(1, Math.max(0, normalizedY));
+        
+        // Color changes based on horizontal position
+        let color;
+        const normalizedX = (x - containerRect.left) / containerRect.width;
+        
+        if (normalizedX < 0.33) {
+            color = 'red';
+        } else if (normalizedX < 0.66) {
+            color = 'orange';
+        } else {
+            color = 'yellow';
+        }
+        
+        return { volume, color };
+    }
+    
+    document.addEventListener('DOMContentLoaded', function () {
+        const drumContainer = document.getElementById('drum-container');
+        const basketItems = document.querySelectorAll('.basket-item');
+        const leftBasket = document.getElementById('left-basket');
+        const rightBasket = document.getElementById('right-basket');
+        const feedbackL = document.querySelector('.feedback-l');
+        const feedbackR = document.querySelector('.feedback-r');
+        
+        let activeItem = null;
+        let offsetX = 0;
+        let offsetY = 0;
+        
+        // Initialize audio on first user interaction
+        const initAudioOnInteraction = function() {
+            initAudio().then(() => {
+                // Remove the initialization event listeners once audio is ready
+                document.removeEventListener('click', initAudioOnInteraction);
+                document.removeEventListener('keydown', initAudioOnInteraction);
+            });
+        };
+        
+        document.addEventListener('click', initAudioOnInteraction);
+        document.addEventListener('keydown', initAudioOnInteraction);
+        
+        // Initialize audio loading
+        initAudio();
+        
+        // Keyboard controls
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'ArrowLeft') {
+                // Trigger left hand
+                triggerPatternWithHand('L');
+            } else if (e.key === 'ArrowRight') {
+                // Trigger right hand
+                triggerPatternWithHand('R');
+            }
+        });
+        
+        basketItems.forEach(item => {
+            item.addEventListener('dragstart', handleDragStart);
+            item.addEventListener('mousedown', handleMouseDown);
+        });
+        
+        [leftBasket, rightBasket, drumContainer].forEach(element => {
+            element.addEventListener('dragover', handleDragOver);
+            element.addEventListener('drop', handleDrop);
+            element.addEventListener('dragenter', function (e) {
+                e.preventDefault();
+                this.classList.add('drag-hover');
+            });
+            element.addEventListener('dragleave', function (e) {
+                e.preventDefault();
+                this.classList.remove('drag-hover');
+            });
+        });
+        
+        function handleDragStart(e) {
+            this.classList.add('dragging');
+            e.dataTransfer.setData('text/plain', this.dataset.sound);
+            e.dataTransfer.setData('side', this.dataset.side);
+            e.dataTransfer.setData('hand', this.dataset.hand);
+            e.dataTransfer.setData('source', this.parentElement.id);
+            const rect = this.getBoundingClientRect();
+            offsetX = e.clientX - rect.left;
+            offsetY = e.clientY - rect.top;
+            activeItem = this;
+        }
+        
+        function handleMouseDown(e) {}
+        
+        function handleDragOver(e) {
+            e.preventDefault();
+            return false;
+        }
+        
+        function handleDrop(e) {
+            e.preventDefault();
+            if (!activeItem) return;
+            
+            const soundId = e.dataTransfer.getData('text/plain');
+            const sourceId = e.dataTransfer.getData('source');
+            
+            activeItem.classList.remove('dragging');
+            document.querySelectorAll('.drag-hover').forEach(el => el.classList.remove('drag-hover'));
+            
+            if (e.currentTarget === drumContainer) {
+                let newItem;
+                if (activeItem.parentElement === leftBasket || activeItem.parentElement === rightBasket) {
+                    newItem = activeItem.cloneNode(true);
+                    newItem.classList.add('on-canvas');
+                    newItem.addEventListener('mousedown', handleCanvasItemMouseDown);
+                    newItem.addEventListener('click', handleDrumClick);
+                    newItem.setAttribute('draggable', true);
+                    drumContainer.appendChild(newItem);
+                } else if (activeItem.classList.contains('on-canvas')) {
+                    newItem = activeItem;
+                }
+                
+                const rect = drumContainer.getBoundingClientRect();
+                newItem.style.left = (e.clientX - rect.left - offsetX) + 'px';
+                newItem.style.top = (e.clientY - rect.top - offsetY) + 'px';
+                makeItemDraggableOnCanvas(newItem);
+            } else if (e.currentTarget === leftBasket || e.currentTarget === rightBasket) {
+                if (activeItem.classList.contains('on-canvas')) {
+                    activeItem.remove();
+                } else if (sourceId && sourceId !== e.currentTarget.id) {
+                    activeItem.remove();
+                    const newBasketItem = document.createElement('div');
+                    newBasketItem.className = 'drum-circle basket-item';
+                    newBasketItem.setAttribute('draggable', 'true');
+                    newBasketItem.dataset.sound = soundId;
+                    newBasketItem.dataset.side = e.currentTarget === leftBasket ? 'left' : 'right';
+                    newBasketItem.dataset.hand = e.currentTarget === leftBasket ? 'L' : 'R';
+                    
+                    const img = document.createElement('img');
+                    img.src = e.currentTarget === leftBasket ? 'snareimg.jpg' : 'bassimg.jpg';
+                    img.alt = e.currentTarget === leftBasket ? 'Snare' : 'Bass';
+                    img.style.width = '100%';
+                    img.style.height = '100%';
+                    
+                    const overlay = document.createElement('div');
+                    overlay.className = 'overlay';
+                    
+                    newBasketItem.appendChild(img);
+                    newBasketItem.appendChild(overlay);
+                    newBasketItem.addEventListener('dragstart', handleDragStart);
+                    newBasketItem.addEventListener('mousedown', handleMouseDown);
+                    
+                    e.currentTarget.appendChild(newBasketItem);
+                }
+            }
+            
+            activeItem = null;
+            return false;
+        }
+        
+        function makeItemDraggableOnCanvas(item) {
+            let isDragging = false;
+            let startX, startY;
+            
+            item.addEventListener('mousedown', function (e) {
+                isDragging = true;
+                startX = e.clientX - parseInt(item.style.left);
+                startY = e.clientY - parseInt(item.style.top);
+                e.preventDefault();
+                e.stopPropagation();
+            });
+            
+            document.addEventListener('mousemove', function (e) {
+                if (!isDragging) return;
+                const rect = drumContainer.getBoundingClientRect();
+                const left = e.clientX - startX;
+                const top = e.clientY - startY;
+                
+                const maxLeft = rect.width - item.offsetWidth;
+                const maxTop = rect.height - item.offsetHeight;
+                
+                item.style.left = Math.max(0, Math.min(left, maxLeft)) + 'px';
+                item.style.top = Math.max(0, Math.min(top, maxTop)) + 'px';
+            });
+            
+            document.addEventListener('mouseup', function () {
+                isDragging = false;
+            });
+        }
+        
+        function handleCanvasItemMouseDown(e) {
+            const item = e.target.closest('.drum-circle');
+            if (!item) return;
+            
+            activeItem = item;
+            
+            const rect = item.getBoundingClientRect();
+            offsetX = e.clientX - rect.left;
+            offsetY = e.clientY - rect.top;
+            item.setAttribute('draggable', true);
+            
+            item.addEventListener('dragstart', function (event) {
+                event.dataTransfer.setData('text/plain', item.dataset.sound);
+                event.dataTransfer.setData('side', item.dataset.side);
+                event.dataTransfer.setData('hand', item.dataset.hand);
+                event.dataTransfer.setData('source', 'drum-container');
+                item.classList.add('dragging');
+            }, { once: true });
+            
+            e.stopPropagation();
+        }
+        
+        function handleDrumClick(e) {
+            const item = e.target.closest('.drum-circle');
+            if (!item || item.classList.contains('dragging')) return;
+            
+            // Get the drum's position relative to the page
+            const drumRect = item.getBoundingClientRect();
+            const drumCenterX = drumRect.left + (drumRect.width / 2);
+            
+            // Get the page width
+            const pageWidth = window.innerWidth;
+            
+            // Determine if the drum is on the left side of the page
+            const isLeft = drumCenterX < (pageWidth / 2);
+            
+            const clientX = e.clientX;
+            const clientY = e.clientY;
+            
+            // Use the calculatePositionEffects function to determine volume and color
+            const { volume, color } = calculatePositionEffects(item, clientX, clientY);
+            
+            // Play the sound using Web Audio API
+            if (audioInitialized) {
+                playSound(item.dataset.sound, volume);
+                
+                // Add visual feedback
+                item.classList.add('hit');
+                setTimeout(() => {
+                    item.classList.remove('hit');
+                }, 300);
+            }
+            
+            // Handle visual feedback based on which side of the page the drum is on
+            if (isLeft) {
+                showFeedback(feedbackL);
+            } else {
+                showFeedback(feedbackR);
+            }
+            
+            // Handle stroke and color effects
+            handleStroke(isLeft ? 'L' : 'R', volume, color);
+            e.stopPropagation();
+        }
+        
+        function triggerPatternWithHand(hand) {
+            // Find all drums on the appropriate side
+            const side = hand === 'L' ? 'left' : 'right';
+            const drumsOnCanvas = document.querySelectorAll(`.drum-circle.on-canvas[data-side="${side}"]`);
+            
+            if (drumsOnCanvas.length > 0) {
+                // Choose one drum randomly
+                const randomIndex = Math.floor(Math.random() * drumsOnCanvas.length);
+                const selectedDrum = drumsOnCanvas[randomIndex];
+                
+                // Create and dispatch a click event
+                const rect = selectedDrum.getBoundingClientRect();
+                const centerX = rect.left + rect.width / 2;
+                const centerY = rect.top + rect.height / 2;
+                
+                const { volume, color } = calculatePositionEffects(selectedDrum, centerX, centerY);
+                
+                // Play sound
+                if (audioInitialized) {
+                    playSound(selectedDrum.dataset.sound, volume);
+                    
+                    // Add visual feedback
+                    selectedDrum.classList.add('hit');
+                    setTimeout(() => {
+                        selectedDrum.classList.remove('hit');
+                    }, 300);
+                }
+                
+                // Show appropriate feedback
+                showFeedback(hand === 'L' ? feedbackL : feedbackR);
+                
+                // Handle stroke effects
+                handleStroke(hand, volume, color);
+            }
+        }
+        
+        function showFeedback(element) {
+            element.classList.add('feedback-active');
+            setTimeout(() => {
+                element.classList.remove('feedback-active');
+            }, 300);
+        }
+        
+        window.handleStroke = window.handleStroke || function(hand, volume, color) {
+            console.log(`Stroke: Hand=${hand}, Volume=${volume.toFixed(2)}, Color=${color}`);
+        };
+        
+        document.querySelectorAll('.basket-item').forEach(item => {
+            item.addEventListener('dragstart', handleDragStart);
+            item.addEventListener('mousedown', handleMouseDown);
+        });
+        
+        // Initialize level visibility
+        updateVisibleDrums(currentLevel);
+    });
+    
+    function updateVisibleDrums(level) {
+        currentLevel = level;
+        
+        document.querySelectorAll('.basket-item').forEach(item => {
+            const itemLevel = parseInt(item.getAttribute('data-level'), 10);
+            item.style.display = itemLevel <= currentLevel ? 'flex' : 'none';
+        });
+        
+        const levelDisplay = document.getElementById('level-display');
+        if (levelDisplay) {
+            levelDisplay.textContent = `Level ${level}`;
+        }
+    }
+    
+    // Add listeners to navigation buttons
+    document.getElementById('prev-levels').addEventListener('click', () => {
+        if (currentLevel > 1) updateVisibleDrums(currentLevel - 1);
+    });
+    
+    document.getElementById('next-levels').addEventListener('click', () => {
+        updateVisibleDrums(currentLevel + 1);
+    });
+    </script>
 </body>
 </html>
