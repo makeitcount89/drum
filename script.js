@@ -1,4 +1,6 @@
 // DOM Elements
+const circleR = document.getElementById('circleR');
+const circleL = document.getElementById('circleL');
 const pattern = document.getElementById('pattern');
 const feedback = document.getElementById('feedback');
 const bpmDisplay = document.getElementById('bpm-display');
@@ -6,27 +8,16 @@ const levelDisplay = document.getElementById('level-display');
 const levelNotification = document.getElementById('level-notification');
 const achievementDisplay = document.getElementById('achievement-display');
 const levelNav = document.getElementById('level-nav');
-const circles = document.querySelectorAll(".circle");
-const overlay = document.getElementById("overlay");
-
-// Audio Context and Resources
-let audioContext;
-let gainNodePool = [];
-const POOL_SIZE = 10;
-
-// Audio buffers and sources
+const audioContext = new (window.AudioContext || window.webkitAudioContext)();
 let snareBuffers = [], bassBuffers = [];
-let snareSourceNodes = [], bassSourceNodes = [];
 
-// Global variables 
-let currentPatternIndex = 0;
+
+// Global variables
+let currentPatternIndex = 0
 let currentLevel = 1;
 let startTime = null;
 let patternSpans = [];
-let currentSoundSet = 1;
-let lastTouchEnd = 0;
-let audioInitialized = false;
-let soundsLoaded = false;
+let currentSoundSet = 1; // Track which sound set we're using (1, 2, or 3)
 
 // Achievements tracker
 let achievements = {
@@ -36,21 +27,132 @@ let achievements = {
     16: null, 17: null, 18: null, 19: null, 20: null
 };
 
+// Rudiment patterns
 const rudiments = {
+    // 16-beat patterns (easy to moderate)
     1: {
-        name: "Double Stroke Roll",
-        pattern: ['R', 'R', 'L', 'L', 'R', 'R', 'L', 'L', 'R', 'R', 'L', 'L', 'R', 'R', 'L', 'L'],
+        name: "Single Stroke Roll",
+        pattern: ['R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L'],
         thresholds: { bronze: 60, silver: 120, gold: 160 }
     },
     2: {
-        name: "Single Paradiddle",
-        pattern: ['R', 'L', 'R', 'R', 'L', 'R', 'L', 'L', 'R', 'L', 'R', 'R', 'L', 'R', 'L', 'L'],
-        thresholds: { bronze: 70, silver: 130, gold: 180 }
+        name: "Double Stroke Roll",
+        pattern: ['R', 'R', 'L', 'L', 'R', 'R', 'L', 'L', 'R', 'R', 'L', 'L', 'R', 'R', 'L', 'L'],
+        thresholds: { bronze: 70, silver: 140, gold: 180 }
     },
     3: {
-        name: "Five Stroke Roll",
-        pattern: ['R', 'R', 'L', 'L', 'R', 'L', 'L', 'R', 'R', 'L', 'R', 'R', 'L', 'L', 'R', 'L'],
-        thresholds: { bronze: 65, silver: 125, gold: 170 }
+        name: "Single Paradiddle",
+        pattern: ['R', 'L', 'R', 'R', 'L', 'R', 'L', 'L', 'R', 'L', 'R', 'R', 'L', 'R', 'L', 'L'],
+        thresholds: { bronze: 80, silver: 150, gold: 200 }
+    },
+    4: {
+        name: "Double Paradiddle",
+        pattern: ['R', 'L', 'R', 'L', 'R', 'R', 'L', 'R', 'L', 'R', 'L', 'L', 'R', 'L', 'R', 'L'],
+        thresholds: { bronze: 90, silver: 160, gold: 220 }
+    },
+    5: {
+        name: "Triple Stroke Roll",
+        pattern: ['R', 'R', 'R', 'L', 'L', 'L', 'R', 'R', 'R', 'L', 'L', 'L', 'R', 'R', 'R', 'L'],
+        thresholds: { bronze: 100, silver: 170, gold: 230 }
+    },
+
+    // 32-beat patterns (moderate)
+    6: {
+        name: "Single Stroke Four",
+        pattern: ['R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L',
+            'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L'],
+        thresholds: { bronze: 110, silver: 180, gold: 240 }
+    },
+    7: {
+        name: "Paradiddle-Diddle",
+        pattern: ['R', 'L', 'R', 'R', 'L', 'L', 'L', 'R', 'L', 'L', 'R', 'R', 'R', 'L', 'R', 'R',
+            'L', 'L', 'R', 'R', 'L', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L'],
+        thresholds: { bronze: 110, silver: 190, gold: 250 }
+    },
+    8: {
+        name: "Single Stroke Seven",
+        pattern: ['R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L',
+            'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L'],
+        thresholds: { bronze: 120, silver: 200, gold: 270 }
+    },
+    9: {
+        name: "Triplet Paradiddle",
+        pattern: ['R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L',
+            'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L'],
+        thresholds: { bronze: 130, silver: 210, gold: 280 }
+    },
+    10: {
+        name: "Paradiddle Triplets",
+        pattern: ['R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L',
+            'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L'],
+        thresholds: { bronze: 130, silver: 210, gold: 290 }
+    },
+
+    // 64-beat patterns (hard)
+    11: {
+        name: "Ratamacue",
+        pattern: ['R', 'L', 'R', 'R', 'L', 'R', 'L', 'L', 'R', 'R', 'R', 'L', 'R', 'L', 'L', 'R',
+            'R', 'L', 'L', 'R', 'R', 'L', 'R', 'L', 'L', 'R', 'R', 'L', 'R', 'R', 'L', 'L',
+            'R', 'R', 'L', 'L', 'R', 'L', 'R', 'R', 'L', 'R', 'R', 'R', 'L', 'L', 'R', 'L',
+            'R', 'R', 'L', 'R', 'L', 'R', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'L', 'R'],
+        thresholds: { bronze: 140, silver: 220, gold: 300 }
+    },
+    12: {
+        name: "Single Paradiddle Triplets",
+        pattern: ['R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L',
+            'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L',
+            'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L'],
+        thresholds: { bronze: 140, silver: 230, gold: 310 }
+    },
+    13: {
+        name: "Single Stroke Six",
+        pattern: ['R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L',
+            'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L',
+            'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L'],
+        thresholds: { bronze: 150, silver: 240, gold: 320 }
+    },
+    14: {
+        name: "Double Stroke Four",
+        pattern: ['R', 'R', 'L', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'R', 'L', 'L',
+            'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'R', 'L', 'R', 'L', 'L', 'R', 'R'],
+        thresholds: { bronze: 150, silver: 240, gold: 330 }
+    },
+    15: {
+        name: "Swiss Triplets",
+        pattern: ['R', 'L', 'L', 'R', 'R', 'L', 'L', 'R', 'R', 'L', 'R', 'L', 'R', 'R', 'L', 'L',
+            'R', 'L', 'L', 'R', 'R', 'L', 'L', 'R', 'R', 'L', 'L', 'R', 'L', 'R', 'R', 'L'],
+        thresholds: { bronze: 160, silver: 250, gold: 340 }
+    },
+    16: {
+        name: "Drag",
+        pattern: ['R', 'L', 'L', 'R', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L',
+            'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L'],
+        thresholds: { bronze: 160, silver: 250, gold: 350 }
+    },
+    17: {
+        name: "Double Stroke Diddle",
+        pattern: ['R', 'R', 'L', 'L', 'R', 'L', 'R', 'L', 'R', 'R', 'L', 'L', 'R', 'L', 'R', 'L',
+            'R', 'L', 'R', 'L', 'R', 'R', 'L', 'R', 'L', 'R', 'R', 'L', 'R', 'L', 'R', 'L'],
+        thresholds: { bronze: 160, silver: 250, gold: 350 }
+    },
+    18: {
+        name: "Triplet Roll",
+        pattern: ['R', 'R', 'R', 'L', 'L', 'L', 'R', 'R', 'R', 'L', 'L', 'L', 'R', 'R', 'R', 'L',
+            'L', 'L', 'R', 'R', 'R', 'L', 'L', 'L', 'R', 'R', 'R', 'L', 'L', 'L', 'R', 'R'],
+        thresholds: { bronze: 170, silver: 260, gold: 360 }
+    },
+    19: {
+        name: "Triple Paradiddle",
+        pattern: ['R', 'L', 'R', 'L', 'R', 'L', 'R', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'L',
+            'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L',
+            'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'L'],
+        thresholds: { bronze: 180, silver: 270, gold: 370 }
+    },
+    20: {
+        name: "Six Stroke Roll",
+        pattern: ['R', 'L', 'R', 'R', 'L', 'L', 'R', 'R', 'L', 'L', 'R', 'R', 'L', 'L', 'R', 'R',
+            'R', 'L', 'L', 'R', 'R', 'R', 'L', 'L', 'R', 'L', 'L', 'R', 'L', 'L', 'R', 'R'],
+        thresholds: { bronze: 180, silver: 280, gold: 380 }
     }
 };
 
@@ -64,133 +166,6 @@ const trophies = {
     bronze: '🥉'
 };
 
-// Create optimized audio context
-function createOptimizedAudioContext() {
-    const contextOptions = {
-        latencyHint: 'balanced',
-        sampleRate: 8000
-    };
-
-    const ctx = new (window.AudioContext || window.webkitAudioContext)(contextOptions);
-
-    const hasAudioWorklet = typeof AudioWorkletNode === 'function';
-
-    if (ctx.audioWorklet && hasAudioWorklet) {
-        console.log('AudioWorklet API available for lower latency');
-    }
-
-    if (navigator.userAgent.toLowerCase().includes('android') && ctx.createScriptProcessor) {
-        const bufferSize = 256;
-        const unusedProcessor = ctx.createScriptProcessor(bufferSize, 1, 1);
-        unusedProcessor.connect(ctx.destination);
-        unusedProcessor.onaudioprocess = function () { };
-        ctx._unusedProcessor = unusedProcessor;
-    }
-
-    return ctx;
-}
-
-// Initialize audio resources
-function initAudio() {
-    if (audioInitialized) return;
-
-    try {
-        audioContext = createOptimizedAudioContext();
-        initAudioPool();
-
-        // Load sound resources here
-        // This would typically include loading and decoding audio buffers
-
-        audioInitialized = true;
-        console.log('Audio initialized successfully');
-
-        // Resume audio context for mobile
-        if (audioContext.state !== 'running') {
-            audioContext.resume();
-        }
-    } catch (err) {
-        console.error('Error initializing audio:', err);
-    }
-}
-
-// Initialize gain node pool for efficient audio handling
-function initAudioPool() {
-    gainNodePool = [];
-    for (let i = 0; i < POOL_SIZE; i++) {
-        const gainNode = audioContext.createGain();
-        gainNode.gain.value = 1.0;
-        gainNode.connect(audioContext.destination);
-        gainNodePool.push({ gainNode, inUse: false });
-    }
-}
-
-// Play sound with optimized resource usage
-function playSound(hand, volume = 0) {
-    if (!audioInitialized) {
-        initAudio();
-        return;
-    }
-
-    if (audioContext.state !== 'running') {
-        audioContext.resume();
-    }
-
-    try {
-        const buffers = hand === 'L' ? snareBuffers : bassBuffers;
-        const idx = Math.min(currentSoundSet - 1, buffers.length - 1);
-        const buf = buffers[idx];
-
-        if (!buf) return;
-
-        let gainWrapper = gainNodePool.find(gw => !gw.inUse);
-        if (!gainWrapper) {
-            const gainNode = audioContext.createGain();
-            gainNode.connect(audioContext.destination);
-            gainWrapper = { gainNode, inUse: false };
-            gainNodePool.push(gainWrapper);
-        }
-
-        gainWrapper.inUse = true;
-        gainWrapper.gainNode.gain.value = volume;
-
-        const source = audioContext.createBufferSource();
-        source.buffer = buf;
-        source.connect(gainWrapper.gainNode);
-        source.start(0);
-
-        setTimeout(() => {
-            gainWrapper.inUse = false;
-        }, 500);
-
-    } catch (err) {
-        console.error("Error playing sound:", err);
-        if (audioContext.state !== 'running') {
-            audioContext.resume();
-        }
-    }
-}
-
-// Clean up completed source nodes
-function cleanupSourceNodes() {
-    const currentTime = audioContext.currentTime;
-    const cleanup = (nodes) => {
-        let i = 0;
-        while (i < nodes.length) {
-            if (nodes[i] && nodes[i].startTime && (currentTime - nodes[i].startTime > 0.5)) {
-                nodes.splice(i, 1);
-            } else {
-                i++;
-            }
-        }
-    };
-
-    cleanup(snareSourceNodes);
-    cleanup(bassSourceNodes);
-
-    if (snareSourceNodes.length > 10) snareSourceNodes.splice(0, snareSourceNodes.length - 10);
-    if (bassSourceNodes.length > 10) bassSourceNodes.splice(0, bassSourceNodes.length - 10);
-}
-
 // Create level navigation buttons
 function createLevelNav() {
     levelNav.innerHTML = '';
@@ -200,34 +175,29 @@ function createLevelNav() {
         btn.className = 'level-btn';
         if (level === currentLevel) {
             btn.classList.add('active');
-            btn.style.backgroundColor = '#0077ff';
-            btn.style.color = 'white';
-            btn.setAttribute('aria-current', 'true');
         }
 
+        // Check if level is accessible (previous level completed or level 1)
         const isAccessible = level === 1 || achievements[level - 1] !== null;
         if (!isAccessible) {
             btn.classList.add('locked');
-            btn.setAttribute('aria-disabled', 'true');
-            btn.setAttribute('tabindex', '-1');
         } else if (achievements[level] !== null) {
             btn.classList.add('completed');
         }
 
         btn.textContent = `Level ${level}`;
-        btn.setAttribute('aria-label', `Level ${level} ${!isAccessible ? '(locked)' : (achievements[level] ? `(completed with ${achievements[level]} trophy)` : '')}`);
 
+        // Add trophy if achieved
         if (achievements[level]) {
             const trophy = document.createElement('span');
             trophy.className = 'trophy';
             trophy.textContent = trophies[achievements[level]];
-            trophy.setAttribute('aria-hidden', 'true');
             btn.appendChild(trophy);
         }
 
-        btn.addEventListener('click', (e) => {
+        // Add click handler
+        btn.addEventListener('click', () => {
             if (isAccessible) {
-                e.preventDefault();
                 changeLevel(level);
             }
         });
@@ -235,15 +205,13 @@ function createLevelNav() {
         levelNav.appendChild(btn);
     }
 }
-
-// Horizontal scroll functionality for level navigation
 document.addEventListener('DOMContentLoaded', () => {
     const leftArrow = document.getElementById('prev-levels');
     const rightArrow = document.getElementById('next-levels');
     const container = document.getElementById('level-nav');
 
     if (leftArrow && rightArrow && container) {
-        const scrollAmount = () => container.querySelector('.level-btn')?.offsetWidth + 10 || 100;
+        const scrollAmount = () => container.querySelector('.level-btn')?.offsetWidth || 100;
 
         leftArrow.addEventListener('click', () => {
             container.scrollBy({ left: -scrollAmount(), behavior: 'smooth' });
@@ -252,37 +220,22 @@ document.addEventListener('DOMContentLoaded', () => {
         rightArrow.addEventListener('click', () => {
             container.scrollBy({ left: scrollAmount(), behavior: 'smooth' });
         });
-
-        let touchStartX = 0;
-        let touchStartY = 0;
-        let touchEndX = 0;
-        let touchEndY = 0;
-
-        container.addEventListener('touchstart', (e) => {
-            touchStartX = e.changedTouches[0].screenX;
-            touchStartY = e.changedTouches[0].screenY;
-        }, { passive: true });
-
-        container.addEventListener('touchend', (e) => {
-            touchEndX = e.changedTouches[0].screenX;
-            touchEndY = e.changedTouches[0].screenY;
-
-            if (Math.abs(touchEndY - touchStartY) < 50) {
-                handleSwipe();
-            }
-        }, { passive: true });
-
-        function handleSwipe() {
-            const swipeThreshold = 50;
-            if (touchEndX < touchStartX - swipeThreshold) {
-                container.scrollBy({ left: scrollAmount(), behavior: 'smooth' });
-            }
-            if (touchEndX > touchStartX + swipeThreshold) {
-                container.scrollBy({ left: -scrollAmount(), behavior: 'smooth' });
-            }
-        }
     }
 });
+
+function playSound(hand) {
+    const buffers = hand === 'L' ? snareBuffers : bassBuffers;
+    const idx = Math.min(currentSoundSet - 1, buffers.length - 1);
+    const buf = buffers[idx];
+
+    if (!buf) return;  // safety
+
+    const src = audioContext.createBufferSource();
+    src.buffer = buf;
+    src.connect(audioContext.destination);
+    src.start();       // near-instant, low-latency playback
+}
+
 
 // Advance to the next level
 function advanceLevel() {
@@ -293,6 +246,7 @@ function advanceLevel() {
         bpmDisplay.textContent = `Your tempo: ${bpm} BPM`;
         achievement = getAchievement(bpm);
 
+        // Update achievement if better than previous
         const currentAchievement = achievements[currentLevel];
         const achievementRank = { gold: 3, silver: 2, bronze: 1, null: 0 };
 
@@ -300,11 +254,13 @@ function advanceLevel() {
             achievements[currentLevel] = achievement;
         }
     } else {
+        // Still award bronze if BPM calculation failed
         if (!achievements[currentLevel]) {
             achievements[currentLevel] = 'bronze';
         }
     }
 
+    // Check if we're advancing to level 2 or 4 to unlock new sounds
     const newLevel = currentLevel + 1;
     let soundUnlocked = false;
 
@@ -322,6 +278,7 @@ function advanceLevel() {
         soundUnlocked = true;
     }
 
+    // Show notification with the level complete and sound unlock if applicable
     let notificationMessage = `Level ${currentLevel} Completed!`;
 
     if (soundUnlocked) {
@@ -343,39 +300,33 @@ function advanceLevel() {
     levelNotification.innerHTML = notificationMessage;
     levelNotification.style.opacity = '1';
 
-    if (navigator.vibrate) {
-        navigator.vibrate([70, 30, 70]);
-    }
-
     setTimeout(() => {
         levelNotification.style.opacity = '0';
     }, 4000);
 
+    // Progress to next level if available, otherwise stay on current
     if (currentLevel < Object.keys(rudiments).length) {
-        changeLevel(newLevel);
+        currentLevel++;
         currentPattern = rudiments[currentLevel].pattern;
         levelDisplay.textContent = `Level ${currentLevel}: ${rudiments[currentLevel].name}`;
         updatePatternDisplay();
-        createLevelNav();
     } else {
         feedback.textContent = "You've completed all levels!";
-        createLevelNav();
     }
 
-   
-    //showAchievementInfo();
+    // Update navigation
+    createLevelNav();
 
+    // Update achievement display
+    showAchievementInfo();
+
+    // Reset
     currentPatternIndex = 0;
     startTime = null;
-
-    // Save progress
-    saveProgress();
-    
 }
 
-// Change level
+// 4. Add sound set reset to the changeLevel function
 function changeLevel(level) {
-    console.log('Changing to level:', level);
     if (level === currentLevel) return;
 
     currentLevel = level;
@@ -383,6 +334,7 @@ function changeLevel(level) {
     levelDisplay.textContent = `Level ${currentLevel}: ${rudiments[currentLevel].name}`;
     updatePatternDisplay();
 
+    // Reset state
     currentPatternIndex = 0;
     startTime = null;
     feedback.textContent = '';
@@ -400,80 +352,89 @@ function changeLevel(level) {
         currentSoundSet = 1;
     }
 
-    const drums = document.querySelectorAll('.basket-item');
-    drums.forEach(drum => {
-        const drumLevel = parseInt(drum.getAttribute('data-level'), 10);
-        drum.style.display = drumLevel <= level ? 'block' : 'none';
-    });
 
-
-    if (navigator.vibrate) {
-        navigator.vibrate(30);
-    }
-
+    // Update achievement display
     showAchievementInfo();
-    createLevelNav();
 
-    // Save progress
-    saveProgress();
+    // Update navigation
+    createLevelNav();
 }
 
+// Function to flash the circle when tapped
+function flashCircle(circle) {
+    circle.classList.add('flash');
+    setTimeout(() => {
+        circle.classList.remove('flash');
+    }, 200);
+}
 
+// Function to update pattern text size based on current position
 function flashCurrentPatternText() {
+    // Only proceed if the patternSpans array has elements and index is valid
     if (patternSpans.length > 0 && currentPatternIndex < patternSpans.length) {
+        // Remove flash class from all spans first
         for (let i = 0; i < patternSpans.length; i++) {
             patternSpans[i].classList.remove('flash');
-            patternSpans[i].classList.remove('next');
         }
 
+        // Add flash class to the current position in the pattern
         patternSpans[currentPatternIndex].classList.add('flash');
-
-        if (currentPatternIndex + 1 < patternSpans.length) {
-            patternSpans[currentPatternIndex + 1].classList.add('next');
-        }
 
         setTimeout(() => {
             if (patternSpans[currentPatternIndex]) {
                 patternSpans[currentPatternIndex].classList.remove('flash');
             }
-        }, 250);
+        }, 300);
     }
 }
 
-// Update pattern display
+// Function to update the pattern display
 function updatePatternDisplay() {
     pattern.innerHTML = '';
-
-    for (let i = 0; i < currentPattern.length; i++) {
+    currentPattern.forEach(stroke => {
         const span = document.createElement('span');
-        span.textContent = currentPattern[i];
-        span.setAttribute('data-index', i);
+        span.textContent = stroke;
         pattern.appendChild(span);
-
-        if ((i + 1) % 4 === 0 && i !== currentPattern.length - 1) {
-            pattern.appendChild(document.createTextNode(' '));
-        }
-    }
-
+    });
+    // Update our patternSpans array after creating the elements
     patternSpans = Array.from(pattern.getElementsByTagName('span'));
+}
 
-    if (patternSpans.length > 0) {
-        patternSpans[0].classList.add('next');
+// Show level completion notification
+function showLevelNotification(level, achievement) {
+    const bpm = calculateBPM();
+    let message = `Level ${level - 1} Completed!`;
+
+    if (level <= Object.keys(rudiments).length) {
+        message += `<br>You're now on Level ${level}!`;
+    } else {
+        message += `<br>You've completed all levels!`;
     }
+
+    if (bpm) {
+        message += `<br><br>Your tempo: ${bpm} BPM`;
+        message += `<br><span class="achievement-${achievement}">${achievement.toUpperCase()} Achievement!</span>`;
+        message += `<br><span class="achievement-icon trophy-${achievement}">${trophies[achievement]}</span>`;
+    }
+
+    levelNotification.innerHTML = message;
+    levelNotification.style.opacity = '1';
+
+    setTimeout(() => {
+        levelNotification.style.opacity = '0';
+    }, 4000);
 }
 
 // Display achievement info for current level
 function showAchievementInfo() {
     const thresholds = rudiments[currentLevel].thresholds;
-    let html = `<div class="achievement-header">Achievements:</div>`;
-    html += `<div class="achievement-grid">`;
-    html += `<div class="achievement-item achievement-bronze">${trophies.bronze} <span>${thresholds.bronze}+ BPM</span></div>`;
-    html += `<div class="achievement-item achievement-silver">${trophies.silver} <span>${thresholds.silver}+ BPM</span></div>`;
-    html += `<div class="achievement-item achievement-gold">${trophies.gold} <span>${thresholds.gold}+ BPM</span></div>`;
-    html += `</div>`;
+    let html = `Achievements: `;
+    html += `<span class="achievement-bronze">${trophies.bronze} (${thresholds.bronze}+ BPM)</span> | `;
+    html += `<span class="achievement-silver">${trophies.silver} (${thresholds.silver}+ BPM)</span> | `;
+    html += `<span class="achievement-gold">${trophies.gold} (${thresholds.gold}+ BPM)</span>`;
 
     if (achievements[currentLevel]) {
-        html += `<div class="current-achievement">Current: <span class="achievement-${achievements[currentLevel]}">${trophies[achievements[currentLevel]]}</span></div>`;
+        html += `<br>Current achievement: <span class="achievement-${achievements[currentLevel]}">${trophies[achievements[currentLevel]]}</span>`;
     }
 
     achievementDisplay.innerHTML = html;
@@ -486,6 +447,8 @@ function calculateBPM() {
     const endTime = new Date();
     const timeElapsed = (endTime - startTime) / 1000; // in seconds
 
+    // Calculate beats per minute
+    // Each note is considered a beat, so pattern.length strokes
     const beatsPerSecond = currentPattern.length / timeElapsed;
     const bpm = Math.round(beatsPerSecond * 60);
 
@@ -502,532 +465,102 @@ function getAchievement(bpm) {
     return 'bronze'; // Minimum achievement is bronze
 }
 
-function preventZoom(e) {
-    const now = Date.now();
-    const timeSince = now - lastTouchEnd;
 
-    if (timeSince < 500) {
-        e.preventDefault();
-        e.stopPropagation();
-    }
 
-    lastTouchEnd = now;
-}
+// Handle circle click or keyboard press
+function handleStroke(hand) {
+    const circle = hand === 'L' ? circleL : circleR;
+    flashCircle(circle);
+    playSound(hand);
 
-// Calculate position-based effects for drums
-window.calculatePositionEffects = function (element, clientX, clientY) {
-    const rect = element.getBoundingClientRect();
-    const centerX = rect.left + rect.width / 2;
-    const centerY = rect.top + rect.height / 2;
-    const dx = clientX - centerX;
-    const dy = clientY - centerY;
-    const distance = Math.sqrt(dx * dx + dy * dy);
-    const radius = rect.width / 2;
-    const normDist = distance / radius;
-
-    let volume, color;
-
-    if (normDist <= 0.33) {
-        volume = 1.0;
-        color = 'radial-gradient(circle, rgba(255,0,0,0.7) 0%, rgba(255,0,0,0) 70%)';
-    } else if (normDist <= 0.66) {
-        volume = 0.5;
-        color = 'radial-gradient(circle, rgba(255,165,0,0.7) 0%, rgba(255,165,0,0) 70%)';
-    } else if (normDist <= 1.0) {
-        volume = 0.25;
-        color = 'radial-gradient(circle, rgba(255,255,0,0.7) 0%, rgba(255,255,0,0) 70%)';
-    } else {
-        volume = 0.2;
-        color = 'none';
-    }
-
-    return { volume, color };
-};
-
-// Handle drum stroke
-function handleStroke(hand, volume = 0, color = null) {
-    if (!audioInitialized) {
-        initAudio();
-        return;
-    }
-
-    if (audioContext && audioContext.state !== 'running') {
-        audioContext.resume();
-    }
-
-    playSound(hand, volume);
-
+    // Start timing from first correct hit
     if (currentPatternIndex === 0 && hand === currentPattern[0]) {
         startTime = new Date();
         bpmDisplay.textContent = "";
     }
 
+    // Check if the clicked circle matches the pattern
     if (currentPattern[currentPatternIndex] === hand) {
+        // Flash the current pattern position
         flashCurrentPatternText();
+
+        // Move to next position in pattern
         currentPatternIndex++;
 
+        // Check if pattern is complete
         if (currentPatternIndex === currentPattern.length) {
             feedback.textContent = "Well done!";
-            feedback.classList.add('success');
-
             setTimeout(() => {
                 advanceLevel();
                 feedback.textContent = "";
-                feedback.classList.remove('success');
             }, 1000);
         }
     } else {
+        // Reset if the wrong circle is clicked
         feedback.textContent = "Oops! Try again.";
-        feedback.classList.add('error');
         currentPatternIndex = 0;
         startTime = null;
 
-        pattern.classList.add('error-shake');
-
-        if (patternSpans.length > 0) {
-            for (let i = 0; i < patternSpans.length; i++) {
-                patternSpans[i].classList.remove('flash', 'next');
-            }
-            patternSpans[0].classList.add('next');
-        }
-
         setTimeout(() => {
             feedback.textContent = "";
-            feedback.classList.remove('error');
-            pattern.classList.remove('error-shake');
         }, 1000);
     }
 }
 
-// Setup event listeners for drum pad interaction
+// Attach click events to the circles
+circleL.addEventListener('click', () => handleStroke('L'));
+circleR.addEventListener('click', () => handleStroke('R'));
 
-function setupNetworkMonitoring() {
-    if ('connection' in navigator) {
-        const connection = navigator.connection;
-
-        const updateConnectionStatus = () => {
-            if (connection.saveData) {
-                console.log('Data Saver enabled - reducing resource usage');
-            }
-
-            if (connection.effectiveType === 'slow-2g' || connection.effectiveType === '2g') {
-                console.log('Slow connection detected - using minimal mode');
-            }
-        };
-
-        connection.addEventListener('change', updateConnectionStatus);
-        updateConnectionStatus();
+// Add keyboard event listener
+document.addEventListener('keydown', (event) => {
+    // Left arrow key for L, Right arrow key for R
+    if (event.key === 'ArrowLeft') {
+        handleStroke('L');
+    } else if (event.key === 'ArrowRight') {
+        handleStroke('R');
     }
-}
+});
 
-// Preload images for better performance
-function preloadImages() {
-    const images = [
-        '/snareimg.jpg',
-        '/maracas.jpg',
-        '/bassimg.jpg',
-        
-    ];
-
-    images.forEach(src => {
-        const img = new Image();
-        img.src = src;
-    });
-}
-
-// Setup battery optimization for Android
-function setupBatteryOptimization() {
-    if ('getBattery' in navigator) {
-        navigator.getBattery().then(battery => {
-            const handleBatteryChange = () => {
-                if (battery.level < 0.15 && !battery.charging) {
-                    document.body.classList.add('power-saving');
-                    console.log('Low battery mode enabled');
-                } else {
-                    document.body.classList.remove('power-saving');
-                }
-            };
-
-            battery.addEventListener('levelchange', handleBatteryChange);
-            battery.addEventListener('chargingchange', handleBatteryChange);
-            handleBatteryChange();
-        });
-    }
-}
-
-// Share achievements function
-function shareAchievements() {
-    let bronzeCount = 0, silverCount = 0, goldCount = 0;
-
-    Object.values(achievements).forEach(achievement => {
-        if (achievement === 'bronze') bronzeCount++;
-        if (achievement === 'silver') silverCount++;
-        if (achievement === 'gold') goldCount++;
-    });
-
-    const shareText = `I've mastered ${Object.keys(achievements).filter(k => achievements[k]).length} drum rudiments with ${goldCount} gold, ${silverCount} silver, and ${bronzeCount} bronze achievements! Try Drum Rudiment Trainer!`;
-
-    if (navigator.share) {
-        navigator.share({
-            title: 'My Drum Rudiments Progress',
-            text: shareText,
-            url: window.location.href
-        })
-            .catch(err => console.log('Error sharing:', err));
-    } else {
-        navigator.clipboard.writeText(shareText)
-            .then(() => {
-                feedback.textContent = "Achievements copied to clipboard!";
-                setTimeout(() => {
-                    feedback.textContent = "";
-                }, 2000);
-            })
-            .catch(err => console.log('Error copying text:', err));
-    }
-}
-
-// Reset progress function
-function resetProgress() {
-    if (confirm("Are you sure you want to reset all your progress?")) {
-        Object.keys(achievements).forEach(key => {
-            achievements[key] = null;
-        });
-
-        currentLevel = 1;
-        currentPattern = rudiments[currentLevel].pattern;
-        currentSoundSet = 1;
-
-        levelDisplay.textContent = `Level ${currentLevel}: ${rudiments[currentLevel].name}`;
-        updatePatternDisplay();
-        currentPatternIndex = 0;
-        startTime = null;
-
-        createLevelNav();
-        showAchievementInfo();
-
-        saveProgress();
-
-        feedback.textContent = "Progress reset!";
-        setTimeout(() => {
-            feedback.textContent = "";
-        }, 2000);
-    }
-}
-
-// Save progress to local storage
-function saveProgress() {
-    try {
-        localStorage.setItem('drumAchievements', JSON.stringify(achievements));
-        localStorage.setItem('drumLevel', currentLevel);
-        localStorage.setItem('drumSoundSet', currentSoundSet);
-        return true;
-    } catch (e) {
-        console.error('Failed to save progress:', e);
-        return false;
-    }
-}
-
-// Load progress from local storage
-function loadProgress() {
-    try {
-        const savedAchievements = localStorage.getItem('drumAchievements');
-        const savedLevel = localStorage.getItem('drumLevel');
-        const savedSoundSet = localStorage.getItem('drumSoundSet');
-
-        if (savedAchievements) {
-            achievements = JSON.parse(savedAchievements);
-        }
-
-        if (savedLevel) {
-            currentLevel = parseInt(savedLevel);
-            currentPattern = rudiments[currentLevel].pattern;
-        }
-
-        if (savedSoundSet) {
-            currentSoundSet = parseInt(savedSoundSet);
-        }
-
-        return true;
-    } catch (e) {
-        console.error('Failed to load progress:', e);
-        return false;
-    }
-}
-
-// Auto-save progress
-function setupAutoSave() {
-    setInterval(saveProgress, 60000);
-}
-
-
-
-// Initialize app with optimized startup sequence
+// Initialize app
 function initApp() {
-    // Create level navigation
-    createLevelNav();
-    
-    // Set up pattern display
+    // Make sure we start at level 1
+    currentLevel = 1;
+    currentPattern = rudiments[currentLevel].pattern;
     levelDisplay.textContent = `Level ${currentLevel}: ${rudiments[currentLevel].name}`;
     updatePatternDisplay();
-    
-    // Show achievement info
+    createLevelNav();
     showAchievementInfo();
 
-    
-   
-    
-    // Add Android-specific touch class if needed
-    if (/Android/i.test(navigator.userAgent)) {
-        document.body.classList.add('android-device');
-    }
-    
-    // Optimize for Android touch experience
-    document.addEventListener('touchstart', function() {
-        // Initialize audio on first touch (required for Android)
-        if (!audioInitialized) {
-            initAudio();
-        }
-    }, { once: true, passive: true });
-    
-    // Add orientation change handler for Android
-    window.addEventListener('orientationchange', function() {
-        // Small delay to let the orientation change complete
-        setTimeout(function() {
-            // Adjust UI based on orientation
-            const isLandscape = window.innerWidth > window.innerHeight;
-            if (isLandscape) {
-                document.body.classList.add('landscape');
-            } else {
-                document.body.classList.remove('landscape');
-            }
-        }, 300);
-    });
-    
-    // Set up network status monitoring
-    setupNetworkMonitoring();
-    
-    // Preload images for better performance
-    preloadImages();
-    
-    // Setup battery optimization
-    setupBatteryOptimization();
-    
-    // Initial setup complete
-    console.log('Drum rudiment app initialized!');
+    // Initialize audio context on first user interaction
+    document.addEventListener('click', initAudio, { once: true });
+    document.addEventListener('keydown', initAudio, { once: true });
 }
+async function initAudio() {
+    const snareFiles = [
+        'snare.mp3', 'snare1.mp3', 'snare2.mp3',
+        'snare3.mp3', 'snare4.mp3', 'snare5.mp3'
+    ];
+    const bassFiles = [
+        'bass.mp3', 'bass1.mp3', 'bass2.mp3',
+        'bass3.mp3', 'bass4.mp3', 'bass5.mp3'
+    ];
 
-// Setup network status monitoring
-function setupNetworkMonitoring() {
-    if ('connection' in navigator) {
-        const connection = navigator.connection;
-        
-        const updateConnectionStatus = () => {
-            if (connection.saveData) {
-                // User has requested reduced data usage
-                // Lower sound quality or disable certain features
-                console.log('Data Saver enabled - reducing resource usage');
-            }
-            
-            // Adjust based on connection type
-            if (connection.effectiveType === 'slow-2g' || connection.effectiveType === '2g') {
-                // Minimal experience for very slow connections
-                console.log('Slow connection detected - using minimal mode');
-            }
-        };
-        
-        // Update on changes
-        connection.addEventListener('change', updateConnectionStatus);
-        
-        // Initial check
-        updateConnectionStatus();
-    }
-}
-
-// Preload images for better performance
-
-function setupBatteryOptimization() {
-    if ('getBattery' in navigator) {
-        navigator.getBattery().then(battery => {
-            const handleBatteryChange = () => {
-                // If battery level is low, reduce animations and background processes
-                if (battery.level < 0.15 && !battery.charging) {
-                    document.body.classList.add('power-saving');
-                    console.log('Low battery mode enabled');
-                } else {
-                    document.body.classList.remove('power-saving');
-                }
-            };
-            
-            // Listen for battery changes
-            battery.addEventListener('levelchange', handleBatteryChange);
-            battery.addEventListener('chargingchange', handleBatteryChange);
-            
-            // Initial check
-            handleBatteryChange();
-        });
-    }
-}
-
-// Share achievements function
-function shareAchievements() {
-    // Count achievements
-    let bronzeCount = 0, silverCount = 0, goldCount = 0;
-    
-    Object.values(achievements).forEach(achievement => {
-        if (achievement === 'bronze') bronzeCount++;
-        if (achievement === 'silver') silverCount++;
-        if (achievement === 'gold') goldCount++;
-    });
-    
-    // Create share text
-    const shareText = `I've mastered ${Object.keys(achievements).filter(k => achievements[k]).length} drum rudiments with ${goldCount} gold, ${silverCount} silver, and ${bronzeCount} bronze achievements! Try Drum Rudiment Trainer!`;
-    
-    // Share via Web Share API if available
-    if (navigator.share) {
-        navigator.share({
-            title: 'My Drum Rudiments Progress',
-            text: shareText,
-            url: window.location.href
-        })
-        .catch(err => console.log('Error sharing:', err));
-    } else {
-        // Fallback: copy to clipboard
-        navigator.clipboard.writeText(shareText)
-            .then(() => {
-                feedback.textContent = "Achievements copied to clipboard!";
-                setTimeout(() => {
-                    feedback.textContent = "";
-                }, 2000);
-            })
-            .catch(err => console.log('Error copying text:', err));
-    }
-}
-
-// Reset progress function
-function resetProgress() {
-    if (confirm("Are you sure you want to reset all your progress?")) {
-        // Reset achievements
-        Object.keys(achievements).forEach(key => {
-            achievements[key] = null;
-        });
-        
-        // Reset to level 1
-        currentLevel = 1;
-        currentPattern = rudiments[currentLevel].pattern;
-        currentSoundSet = 1;
-        
-        // Reset UI
-        levelDisplay.textContent = `Level ${currentLevel}: ${rudiments[currentLevel].name}`;
-        updatePatternDisplay();
-        currentPatternIndex = 0;
-        startTime = null;
-        
-        // Update navigation
-        createLevelNav();
-        showAchievementInfo();
-        
-        // Save to local storage
-        saveProgress();
-        
-        feedback.textContent = "Progress reset!";
-        setTimeout(() => {
-            feedback.textContent = "";
-        }, 2000);
-    }
-}
-
-// Save progress to local storage
-function saveProgress() {
-    try {
-        localStorage.setItem('drumAchievements', JSON.stringify(achievements));
-        localStorage.setItem('drumLevel', currentLevel);
-        localStorage.setItem('drumSoundSet', currentSoundSet);
-        return true;
-    } catch (e) {
-        console.error('Failed to save progress:', e);
-        return false;
-    }
-}
-
-// Load progress from local storage
-function loadProgress() {
-    try {
-        const savedAchievements = localStorage.getItem('drumAchievements');
-        const savedLevel = localStorage.getItem('drumLevel');
-        const savedSoundSet = localStorage.getItem('drumSoundSet');
-        
-        if (savedAchievements) {
-            achievements = JSON.parse(savedAchievements);
-        }
-        
-        if (savedLevel) {
-            currentLevel = parseInt(savedLevel);
-            currentPattern = rudiments[currentLevel].pattern;
-        }
-        
-        if (savedSoundSet) {
-            currentSoundSet = parseInt(savedSoundSet);
-        }
-        
-        return true;
-    } catch (e) {
-        console.error('Failed to load progress:', e);
-        return false;
-    }
-}
-
-// Auto-save progress
-function setupAutoSave() {
-    // Save progress every minute and on level completion
-    setInterval(saveProgress, 60000);
-}
-
-// Add share button event listener
-document.addEventListener('DOMContentLoaded', function() {
-    const shareButton = document.getElementById('share-button');
-    if (shareButton) {
-        shareButton.addEventListener('click', shareAchievements);
-    }
-    
-    const resetButton = document.getElementById('reset-button');
-    if (resetButton) {
-        resetButton.addEventListener('click', resetProgress);
-    }
-    
-    // Try to load saved progress
-    if (loadProgress()) {
-        console.log('Saved progress loaded');
-    } else {
-        console.log('No saved progress found, starting fresh');
-    }
-    
-    // Setup auto-save
-    setupAutoSave();
-    
-    // Initialize the app
-    initApp();
-});
-
-
-
-
-// Handle online/offline events
-window.addEventListener('online', function() {
-    console.log('App is online');
-    // Re-enable online features if needed
-});
-
-window.addEventListener('offline', function() {
-    console.log('App is offline');
-    // Disable features that require connectivity
-});
-
-// Export functions for testing
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = {
-        handleStroke,
-        calculateBPM,
-        getAchievement,
-        advanceLevel
+    // Helper to fetch & decode
+    const load = async url => {
+        const resp = await fetch(url);
+        const data = await resp.arrayBuffer();
+        return audioContext.decodeAudioData(data);
     };
+
+    // Preload all snares and basses
+    [snareBuffers, bassBuffers] = await Promise.all([
+        Promise.all(snareFiles.map(load)),
+        Promise.all(bassFiles.map(load))
+    ]);
+
+    console.log('All drum sounds decoded');
 }
+
+// Initialize on page load
+window.onload = initApp;
+
